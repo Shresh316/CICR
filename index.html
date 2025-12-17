@@ -1,4 +1,4 @@
-ju<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -450,67 +450,165 @@ h3 { color: #fff; font-size: 16px; margin-bottom: 15px; text-transform: uppercas
 .full-span { grid-column: span 2; }
 
 /* --- ATTENDANCE UI UPGRADE (Cockpit Style) --- */
-#attendance-card h2 { border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+#attendance-card h2 { 
+    border-bottom: 1px solid rgba(255,255,255,0.1); 
+    padding-bottom: 15px; 
+    margin-bottom: 25px; 
+}
 
 /* The new Summary HUD Dashboard */
 .hud-dashboard {
-    background: rgba(0,0,0,0.3);
+    background: linear-gradient(180deg, rgba(31, 40, 51, 0.8) 0%, rgba(11, 12, 16, 0.9) 100%);
     border: 1px solid var(--color-accent-dim);
-    border-radius: 8px;
-    padding: 15px;
-    margin-bottom: 25px;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 30px;
     display: flex;
     justify-content: space-around;
     align-items: center;
-    box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    backdrop-filter: blur(5px);
 }
-.hud-stat-box { text-align: center; position: relative; }
-.hud-stat-label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 5px; }
-.hud-stat-value { font-family: var(--font-heading); font-size: 28px; font-weight: 800; color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.3); }
+.hud-stat-box { text-align: center; position: relative; width: 100%; border-right: 1px solid rgba(255,255,255,0.1); }
+.hud-stat-box:last-child { border-right: none; }
+.hud-stat-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 2px; display: block; margin-bottom: 8px; font-weight: 600; }
+.hud-stat-value { font-family: var(--font-heading); font-size: 32px; font-weight: 800; color: #fff; text-shadow: 0 0 15px rgba(255,255,255,0.1); }
 .stat-present { color: var(--color-success); }
 .stat-absent { color: var(--color-danger); }
 .stat-ratio { color: var(--color-accent); }
 
 /* Updated Controls Look */
 .controls-container input, .controls-container select, .controls-container textarea {
-    background: rgba(0,0,0,0.2);
-    border: none;
-    border-bottom: 2px solid #444;
-    border-radius: 0;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid #333; /* Changed from bottom-border only to full border for better visibility */
+    border-radius: 4px;
+    padding: 10px 15px;
     transition: all 0.3s;
     color: #eee;
 }
 .controls-container input:focus, .controls-container select:focus, .controls-container textarea:focus {
-    border-bottom-color: var(--color-accent);
+    border-color: var(--color-accent);
     background: rgba(102, 252, 241, 0.05);
-    box-shadow: none;
+    box-shadow: 0 0 10px rgba(102, 252, 241, 0.1);
 }
 .controls-container label { color: var(--color-accent); font-size: 10px; margin-bottom: 4px; opacity: 0.8; }
 
-/* Updated List Items */
+/* --- FIXED ATTENDANCE LIST (Prevents Overlapping) --- */
 #attendance-list {
-    background: transparent;
-    border: none;
-    max-height: 500px;
-}
-.student-item {
-    background: rgba(255,255,255,0.03);
+    background: rgba(0,0,0,0.2);
+    border-radius: 8px;
     border: 1px solid #333;
-    margin-bottom: 8px;
-    border-radius: 4px;
-    border-left: 4px solid #444; /* Default unmarked */
-    transition: transform 0.2s, box-shadow 0.2s;
+    max-height: 450px; /* Fixed height container */
+    overflow-y: auto;  /* ENABLES SCROLLING - Fixes overlap */
+    overflow-x: hidden;
+    padding: 15px;
+    margin-bottom: 25px; /* Pushes the Absent summary down */
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
 }
+
+/* Custom Scrollbar for the list */
+#attendance-list::-webkit-scrollbar { width: 6px; }
+#attendance-list::-webkit-scrollbar-track { background: #121418; border-radius: 4px; }
+#attendance-list::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+#attendance-list::-webkit-scrollbar-thumb:hover { background: var(--color-accent-dim); }
+
+/* --- IMPROVED STUDENT ITEM GRAPHICS --- */
+.student-item {
+    display: flex; /* Align name and buttons in a row */
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(90deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 12px 15px;
+    border-radius: 6px;
+    border-left: 4px solid #444; /* Default unmarked */
+    transition: all 0.2s ease-in-out;
+}
+
 .student-item:hover {
     transform: translateX(5px);
-    box-shadow: -5px 0 10px rgba(0,0,0,0.5);
     background: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.2);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
 }
-.student-item.present { border-left-color: var(--color-success); background: linear-gradient(90deg, rgba(46,204,113,0.1) 0%, transparent 100%); }
-.student-item.absent { border-left-color: var(--color-danger); background: linear-gradient(90deg, rgba(231,76,60,0.1) 0%, transparent 100%); }
+
+.student-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.student-name { 
+    font-weight: 700; 
+    color: #e0e0e0; 
+    font-size: 15px; 
+    letter-spacing: 0.5px;
+}
+.student-id { 
+    font-size: 11px; 
+    color: #888; 
+    margin-top: 3px; 
+    font-family: monospace; 
+}
+
+/* Status Colors & Glows */
+.student-item.present { 
+    border-left-color: var(--color-success); 
+    background: linear-gradient(90deg, rgba(46,204,113,0.15) 0%, transparent 100%); 
+    border-top: 1px solid rgba(46,204,113,0.3);
+    border-bottom: 1px solid rgba(46,204,113,0.3);
+}
+.student-item.absent { 
+    border-left-color: var(--color-danger); 
+    background: linear-gradient(90deg, rgba(231,76,60,0.15) 0%, transparent 100%); 
+    border-top: 1px solid rgba(231,76,60,0.3);
+    border-bottom: 1px solid rgba(231,76,60,0.3);
+}
+
+/* Better Buttons */
+.status-controls { display: flex; gap: 8px; }
+
+.status-button {
+    padding: 6px 16px !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    border-radius: 20px !important; /* Rounded Pills */
+    border: 1px solid #444 !important;
+    background: rgba(0,0,0,0.3) !important;
+    color: #888;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    box-shadow: none !important;
+}
+.status-button:hover {
+    border-color: #666 !important;
+    color: #fff !important;
+    background: rgba(255,255,255,0.1) !important;
+}
+
+/* Active State Styles */
+.btn-present[style*="opacity: 1.0"] { 
+    background-color: var(--color-success) !important; 
+    color: #000 !important; 
+    box-shadow: 0 0 10px var(--color-success) !important;
+    border: none !important;
+}
+.btn-absent[style*="opacity: 1.0"] { 
+    background-color: var(--color-danger) !important; 
+    color: #fff !important; 
+    box-shadow: 0 0 10px var(--color-danger) !important;
+    border: none !important;
+}
+.btn-unmarked[style*="opacity: 1.0"] { 
+    background-color: #555 !important; 
+    color: #fff !important; 
+}
+
 
 /* --- ANALYTICS UPGRADE (Leaderboard Style) --- */
-#personal-report-table { border-collapse: separate; border-spacing: 0 5px; margin-top: 15px; }
+#personal-report-table { width: 100%; border-collapse: separate; border-spacing: 0 5px; margin-top: 15px; }
 #personal-report-table th { background: transparent; border: none; color: #888; font-size: 10px; letter-spacing: 1px; padding: 0 15px 10px 15px; text-align: left; }
 #personal-report-table td { background: rgba(255,255,255,0.03); border: 1px solid #333; padding: 12px 15px; font-size: 13px; color: #ccc; }
 #personal-report-table tr td:first-child { border-top-left-radius: 4px; border-bottom-left-radius: 4px; border-left: 3px solid var(--color-accent-dim); font-weight: 600; color: #fff; }
@@ -619,25 +717,6 @@ button.btn-utility, button.status-button, #create-gmeet-btn, #schedule-meeting-b
     background-color: var(--color-success);
     color: #fff !important;
 }
-
-.student-name { font-weight: 600; color: #fff; font-size: 15px; }
-.student-id { font-size: 12px; color: var(--color-accent-dim); margin-top: 2px; }
-
-.status-controls { display: flex; gap: 8px; }
-.status-button {
-    padding: 6px 14px !important;
-    font-size: 10px !important;
-    border-radius: 2px !important;
-    border: 1px solid #444 !important;
-    background: transparent;
-    color: #888;
-    box-shadow: none !important;
-}
-
-.status-button[style*="opacity: 1.0"] { color: #fff !important; border-color: transparent !important; box-shadow: 0 0 5px rgba(0,0,0,0.5) !important; }
-.btn-present[style*="opacity: 1.0"] { background-color: var(--color-success) !important; }
-.btn-absent[style*="opacity: 1.0"] { background-color: var(--color-danger) !important; }
-.btn-unmarked[style*="opacity: 1.0"] { background-color: #444 !important; }
 
 /* --- CICR SHELF (PROJECTS) --- */
 .project-card {
@@ -841,41 +920,73 @@ button.btn-utility, button.status-button, #create-gmeet-btn, #schedule-meeting-b
     .hud-dashboard { flex-direction: column; gap: 10px; }
 }
 
-/* --- ABOUT SECTION STYLES --- */
-.about-grid {
+/* --- REVISED ABOUT SECTION STYLES --- */
+.about-dashboard {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(12, 1fr);
     gap: 20px;
 }
+.col-span-12 { grid-column: span 12; }
+.col-span-8 { grid-column: span 8; }
+.col-span-4 { grid-column: span 4; }
+
 .about-info-box {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid #333;
     padding: 20px;
-    border-left: 3px solid var(--color-accent-dim);
+    border-radius: 4px;
+    transition: transform 0.3s ease;
+    height: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+.about-info-box:hover {
+    transform: translateY(-3px);
+    border-color: var(--color-accent-dim);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+}
+.about-hero-box {
+    background: linear-gradient(135deg, rgba(31, 40, 51, 0.9), rgba(11, 12, 16, 0.95));
+    border-left: 5px solid var(--color-accent);
 }
 .about-info-box h4 {
     color: var(--color-accent);
-    margin-bottom: 10px;
+    margin-bottom: 15px;
     font-size: 16px;
     text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 8px;
 }
 .domain-table {
     width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
+    border-collapse: separate;
+    border-spacing: 0 5px;
     font-size: 13px;
 }
 .domain-table th {
     text-align: left;
-    color: var(--color-accent);
-    border-bottom: 1px solid #444;
-    padding: 8px;
+    color: #888;
+    font-size: 11px;
+    padding: 5px;
 }
 .domain-table td {
-    border-bottom: 1px solid #333;
-    padding: 8px;
+    background: rgba(255,255,255,0.02);
+    padding: 10px;
     color: #ccc;
-    vertical-align: top;
+    vertical-align: middle;
+    border: 1px solid #333;
+}
+.tech-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 10px;
+    background: rgba(102, 252, 241, 0.1);
+    color: var(--color-accent);
+    border-radius: 4px;
+    margin-right: 3px;
+    margin-bottom: 3px;
 }
 
 /* Social Connect Grid */
@@ -883,7 +994,7 @@ button.btn-utility, button.status-button, #create-gmeet-btn, #schedule-meeting-b
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
     gap: 15px;
-    margin-top: 20px;
+    margin-top: auto; /* Push to bottom of container if needed */
 }
 .social-card {
     background: #0b0c10;
@@ -915,6 +1026,10 @@ button.btn-utility, button.status-button, #create-gmeet-btn, #schedule-meeting-b
     text-transform: uppercase;
     font-weight: 600;
     letter-spacing: 1px;
+}
+
+@media (max-width: 900px) {
+    .col-span-8, .col-span-4 { grid-column: span 12; }
 }
 </style>
 </head>
@@ -974,7 +1089,7 @@ button.btn-utility, button.status-button, #create-gmeet-btn, #schedule-meeting-b
 		
         <p class="designer-credit">
             SYSTEM DESIGNED BY<br>
-            <span style="color: #fff; font-size: 14px; font-weight: 700;">KUMAR SHAURYA  AND SHRESHTHA GUPTA</span>         </p>
+            <span style="color: #fff; font-size: 14px; font-weight: 700;">KUMAR SHAURYA AND SHRESHTHA GUPTA</span>         </p>
 
 		<div id="digital-clock">Loading...</div>
 	</div>
@@ -1039,22 +1154,23 @@ button.btn-utility, button.status-button, #create-gmeet-btn, #schedule-meeting-b
 			<p id="login-error" style="color:var(--color-danger); margin-top:15px; display:none; font-size:13px; font-weight:600;">ACCESS DENIED. INVALID CREDENTIALS.</p>
 		</div>
 	</div>
-    
+    
 	<div id="app-content" style="display: none;">
-        <nav class="tab-navigation" role="tablist">
-            <a class="tab-link active" data-tab="attendance" role="tab" aria-selected="true">ATTENDANCE</a>
-            <a class="tab-link" data-tab="about" role="tab" aria-selected="false">ABOUT CICR</a>
-            <a class="tab-link" data-tab="history" role="tab" aria-selected="false">LOGS</a>
-            <a class="tab-link" data-tab="reports" role="tab" aria-selected="false">ANALYTICS</a>
-            <a class="tab-link" data-tab="projects" role="tab" aria-selected="false">CICR SHELF</a>
+        <nav class="tab-navigation" role="tablist">
+            <a class="tab-link active" data-tab="attendance" role="tab" aria-selected="true">ATTENDANCE</a>
+            <a class="tab-link" data-tab="history" role="tab" aria-selected="false">LOGS</a>
+            <a class="tab-link" data-tab="reports" role="tab" aria-selected="false">ANALYTICS</a>
+            <a class="tab-link" data-tab="projects" role="tab" aria-selected="false">CICR SHELF</a>
+            <a class="tab-link" data-tab="equipment" role="tab" aria-selected="false">EQUIPMENT</a>
             <a class="tab-link" data-tab="chat" role="tab" aria-selected="false">COMMUNITY</a>
-            <a class="tab-link" data-tab="scheduling" role="tab" aria-selected="false">SCHEDULING</a>
-            <a class="tab-link" data-tab="admin" role="tab" aria-selected="false">ADMIN</a>
+            <a class="tab-link" data-tab="scheduling" role="tab" aria-selected="false">SCHEDULING</a>
+            <a class="tab-link" data-tab="admin" role="tab" aria-selected="false">ADMIN</a>
+            <a class="tab-link" data-tab="about" role="tab" aria-selected="false">ABOUT CICR</a>
             <a class="tab-link" data-tab="account" role="tab" aria-selected="false">MY ACCOUNT</a>
-        </nav>
+        </nav>
 
 		<div class="main-content">
-            <section id="attendance-content" class="tab-content active" role="tabpanel">
+            <section id="attendance-content" class="tab-content active" role="tabpanel">
 				<div id="attendance-card" class="energy-frame">
 					<h2 id="attendance-heading">Attendance Command Center</h2>
 					
@@ -1122,92 +1238,7 @@ button.btn-utility, button.status-button, #create-gmeet-btn, #schedule-meeting-b
 				</div>
 			</section>
 
-            <section id="about-content" class="tab-content" role="tabpanel">
-                <div class="energy-frame">
-                    <h2 style="border-left-color: #fff;">System Identity: CICR</h2>
-                    
-                    <div class="about-grid">
-                        <div class="about-info-box">
-                            <h4>// 01. Identity Matrix</h4>
-                            <p style="font-size: 13px; color: #ccc;">
-                                <strong style="color:#fff;">Full Name:</strong> Creative and Innovative Cell in Robotics<br>
-                                <strong style="color:#fff;">Tagline:</strong> "The Robotics Hub of JIIT-128"<br>
-                                <strong style="color:#fff;">Affiliation:</strong> Operates under Jaypee Youth Club (JYC) @ Sector 128 Campus.<br>
-                                <br>
-                                <em style="font-size:11px; color:#888;">*Note: While formerly referred to as "Centre for Innovation," the official technical designation (GitHub/Web) is Creative and Innovative Cell in Robotics.</em>
-                            </p>
-                        </div>
-
-                        <div class="about-info-box">
-                            <h4>// 02. Founding Data</h4>
-                            <p style="font-size: 13px; color: #ccc;">
-                                <strong>Origin:</strong> Established shortly after the Sector 128 campus began (approx early 2010s) as the counterpart to Sector 62's uCR.<br>
-                                <strong>Founders:</strong> Founded by the JIIT Student Community (JYC) in collaboration with ECE & CSE Faculty Departments.<br>
-                                <strong>Leadership:</strong> Student-governed body. Leadership transfers annually from 4th-year Heads to 3rd-year Coordinators.
-                            </p>
-                        </div>
-
-                        <div class="about-info-box">
-                            <h4>// 03. Core Functions & Domains</h4>
-                            <p style="font-size:13px; margin-bottom:10px;">CICR is a multidisciplinary innovation society integrating software, AI, and electronics.</p>
-                            
-                            <table class="domain-table">
-                                <tr>
-                                    <th width="30%">Domain</th>
-                                    <th>Focus Areas</th>
-                                </tr>
-                                <tr>
-                                    <td><span style="color:var(--color-accent);">Robotics</span></td>
-                                    <td>Embedded Systems, Arduino, IoT, PCB Design, Hardware Prototyping.</td>
-                                </tr>
-                                <tr>
-                                    <td><span style="color:var(--color-accent);">Software</span></td>
-                                    <td>AI/ML, Computer Vision, Data Science, Full-stack Web Dev, App Dev.</td>
-                                </tr>
-                            </table>
-
-                            <div style="margin-top: 15px;">
-                                <strong style="color:#fff; font-size:13px;">Key Protocols (Events):</strong>
-                                <ul style="font-size:13px; color:#aaa; margin-top:5px;">
-                                    <li><strong>TechTonic:</strong> Flagship technical festival & Hackathon.</li>
-                                    <li><strong>Circuit Rush:</strong> Precision circuitry challenge.</li>
-                                    <li><strong>Robo Soccer:</strong> Wireless 2v2 bot football.</li>
-                                </ul>
-                            </div>
-                        </div>
-
-                        <div class="about-info-box">
-                            <h4>// 04. Command Hierarchy</h4>
-                            <ul style="list-style: none; padding: 0; font-size: 13px; color: #ccc;">
-                                <li style="margin-bottom: 5px;"><span style="color: var(--color-tinker);">■</span> <strong>Heads & Advisors (4th Year):</strong> Strategic planning & mentorship.</li>
-                                <li style="margin-bottom: 5px;"><span style="color: var(--color-accent);">■</span> <strong>Coordinators (3rd Year):</strong> Operations & Event Management.</li>
-                                <li style="margin-bottom: 5px;"><span style="color: var(--color-success);">■</span> <strong>Core Team (2nd Year):</strong> Project Execution.</li>
-                                <li><span style="color: #888;">■</span> <strong>Volunteers (1st Year):</strong> Learning & Assistance.</li>
-                            </ul>
-                        </div>
-                    </div>
-
-                    <h3 style="margin-top: 30px; border-top: 1px solid #333; padding-top: 15px;">Establish Connection</h3>
-                    <div class="connect-grid">
-                        <a href="https://www.instagram.com/cicr_jiit?igsh=MWNib3pma2xiYXpqcQ==" target="_blank" class="social-card">
-                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Instagram_logo_2016.svg/2048px-Instagram_logo_2016.svg.png" alt="Insta" class="social-icon-img">
-                            <span class="social-label">Instagram</span>
-                        </a>
-
-                        <a href="https://www.linkedin.com/company/cicrjiit128/" target="_blank" class="social-card">
-                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/LinkedIn_logo_initials.png/960px-LinkedIn_logo_initials.png" alt="LinkedIn" class="social-icon-img">
-                            <span class="social-label">LinkedIn</span>
-                        </a>
-
-                        <a href="https://www.cicr.in/" target="_blank" class="social-card">
-                            <img src="https://i.pinimg.com/736x/67/0e/af/670eaf4523e896c4e587bc2b87ab0f4a.jpg" alt="Web" class="social-icon-img" style="border-radius: 50%;">
-                            <span class="social-label">Official Portal</span>
-                        </a>
-                    </div>
-                </div>
-            </section>
-
-            <section id="history-content" class="tab-content" role="tabpanel">
+            <section id="history-content" class="tab-content" role="tabpanel">
 				<div id="history-card" class="energy-frame">
 					<h2 id="history-heading">Meeting Logs</h2>
 					<div class="history-controls" style="display: flex; gap: 10px; margin-bottom: 20px;">
@@ -1219,17 +1250,17 @@ button.btn-utility, button.status-button, #create-gmeet-btn, #schedule-meeting-b
 				</div>
 			</section>
 
-            <section id="reports-content" class="tab-content" role="tabpanel">
-                <div id="personal-report-card" class="energy-frame">
-                    <h2 id="report-heading">Analytics Leaderboard</h2>
-                    <div class="table-wrapper">
-                        <table id="personal-report-table">
-                            <thead><tr><th>MEMBER</th><th>UNIT</th><th>ATTENDANCE %</th></tr></thead>
-                            <tbody id="personal-report-body"><tr><td colspan="3">Calculations Pending...</td></tr></tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
+            <section id="reports-content" class="tab-content" role="tabpanel">
+                <div id="personal-report-card" class="energy-frame">
+                    <h2 id="report-heading">Analytics Leaderboard</h2>
+                    <div class="table-wrapper">
+                        <table id="personal-report-table">
+                            <thead><tr><th>MEMBER</th><th>UNIT</th><th>ATTENDANCE %</th></tr></thead>
+                            <tbody id="personal-report-body"><tr><td colspan="3">Calculations Pending...</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
 
             <section id="projects-content" class="tab-content" role="tabpanel">
                 <div class="energy-frame">
@@ -1294,6 +1325,60 @@ button.btn-utility, button.status-button, #create-gmeet-btn, #schedule-meeting-b
                 </div>
             </section>
 
+            <section id="equipment-content" class="tab-content" role="tabpanel">
+                <div class="energy-frame">
+                    <h2>Hardware Issuance Protocol</h2>
+                    <p style="font-size:12px; color:#888; margin-top:-10px;">Log equipment distribution for project work.</p>
+                    
+                    <div class="controls-container">
+                        <div>
+                            <label for="eq-name">Equipment Name</label>
+                            <input type="text" id="eq-name" placeholder="e.g. Arduino Uno, LiPo Battery">
+                        </div>
+                        <div>
+                            <label for="eq-member-select">Issued To (Member)</label>
+                            <select id="eq-member-select">
+                                <option value="" disabled selected>-- Select Member --</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="eq-group">Project Group/Unit</label>
+                            <input type="text" id="eq-group" placeholder="e.g. Drone Team Alpha">
+                        </div>
+                        <div>
+                            <label>Issue Date</label>
+                            <input type="date" id="eq-issue-date">
+                        </div>
+                        <div>
+                            <label>Return Due Date</label>
+                            <input type="date" id="eq-return-date">
+                        </div>
+                        <div class="full-span">
+                            <button id="add-equipment-btn" class="btn-save">ISSUE EQUIPMENT</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="energy-frame">
+                    <h2 style="color: var(--color-tinker);">Active Hardware Logs</h2>
+                    <div class="table-wrapper" style="overflow-x:auto;">
+                        <table id="personal-report-table">
+                            <thead>
+                                <tr>
+                                    <th>EQUIPMENT</th>
+                                    <th>ISSUED TO</th>
+                                    <th>DATES</th>
+                                    <th>STATUS</th>
+                                    <th>ACTION</th>
+                                </tr>
+                            </thead>
+                            <tbody id="equipment-log-body">
+                                <tr><td colspan="5" style="text-align:center; opacity:0.5;">No active equipment logs.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
             <section id="chat-content" class="tab-content" role="tabpanel">
                 <div class="energy-frame chat-wrapper">
                     <h2>Secure Community Channel</h2>
@@ -1307,59 +1392,132 @@ button.btn-utility, button.status-button, #create-gmeet-btn, #schedule-meeting-b
                 </div>
             </section>
 
-            <section id="scheduling-content" class="tab-content" role="tabpanel">
-                <div id="scheduling-card" class="energy-frame">
-                    <h3>Email Scheduler</h3>
-                    <div class="scheduling-grid">
-                        <div>
-                            <label for="schedule-initiator-select">Sender</label>
-                            <select id="schedule-initiator-select"><option value="" disabled selected>-- Select Sender --</option></select>
-                        </div>
-                        <div>
-                            <label for="schedule-recipient-select">Recipient</label>
-                            <select id="schedule-recipient-select"><option value="" disabled selected>-- Select Recipient --</option></select>
-                        </div>
-                        <div><label>Sender Email</label><input type="email" id="sender-email" placeholder="sender@gmail.com"></div>
-                        <div><label>Recipient Email</label><input type="text" id="recipient-email" placeholder="recipient@email.com"></div>
-                        <div class="full-span"><label>Subject</label><input type="text" id="schedule-subject" placeholder="Meeting Subject"></div>
-                        <div>
+            <section id="scheduling-content" class="tab-content" role="tabpanel">
+                <div id="scheduling-card" class="energy-frame">
+                    <h3>Email Scheduler</h3>
+                    <div class="scheduling-grid">
+                        <div>
+                            <label for="schedule-initiator-select">Sender</label>
+                            <select id="schedule-initiator-select"><option value="" disabled selected>-- Select Sender --</option></select>
+                        </div>
+                        <div>
+                            <label for="schedule-recipient-select">Recipient</label>
+                            <select id="schedule-recipient-select"><option value="" disabled selected>-- Select Recipient --</option></select>
+                        </div>
+                        <div><label>Sender Email</label><input type="email" id="sender-email" placeholder="sender@gmail.com"></div>
+                        <div><label>Recipient Email</label><input type="text" id="recipient-email" placeholder="recipient@email.com"></div>
+                        <div class="full-span"><label>Subject</label><input type="text" id="schedule-subject" placeholder="Meeting Subject"></div>
+                        <div>
 							<label>Date</label>
 							<div class="date-picker-wrapper">
-                            	<input type="date" id="schedule-date">
+                            	<input type="date" id="schedule-date">
 								<button type="button" id="open-calendar-scheduler-btn">📅</button>
 							</div>
-                        </div>
+                        </div>
 						<div><label>Time</label><input type="time" id="schedule-time" value="10:00"></div>
-                        <div>
-                            <label>Location Type</label>
-                            <select id="schedule-location-type"><option value="Online">Online</option><option value="Offline">Offline</option></select>
-                        </div>
-                        <div><label>Details</label><input type="text" id="schedule-location-details" placeholder="Link or Room No"></div>
-                        <div class="full-span"><button id="schedule-meeting-btn">Generate & Send</button></div>
-                    </div>
-                    <h3>Unit / Group Management</h3>
+                        <div>
+                            <label>Location Type</label>
+                            <select id="schedule-location-type"><option value="Online">Online</option><option value="Offline">Offline</option></select>
+                        </div>
+                        <div><label>Details</label><input type="text" id="schedule-location-details" placeholder="Link or Room No"></div>
+                        <div class="full-span"><button id="schedule-meeting-btn">Generate & Send</button></div>
+                    </div>
+                    <h3>Unit / Group Management</h3>
                         <div class="member-control-grid">
                             <div class="full-span"><label>Add New Group</label><input type="text" id="new-permanent-group" placeholder="e.g. Research Subunit Beta"></div>
                             <div class="full-span" style="padding-top:5px;"><button id="add-permanent-group-btn">Add Group</button></div>
                         </div>
-                </div>
-            </section>
+                </div>
+            </section>
 
-            <section id="admin-content" class="tab-content" role="tabpanel">
-                <div id="admin-tools-wrapper">
+            <section id="admin-content" class="tab-content" role="tabpanel">
+                <div id="admin-tools-wrapper">
                     <div id="member-management-card" class="energy-frame">
-                        <h3>User Database Management</h3>
-                        <div class="member-control-grid">
-                            <div><label>New User Name</label><input type="text" id="new-member-name" placeholder="e.g. Anil Sharma"></div>
-                            <div><label>Assign Unit</label><select id="new-member-group"></select></div>
+                        <h3>User Database Management</h3>
+                        <div class="member-control-grid">
+                            <div><label>New User Name</label><input type="text" id="new-member-name" placeholder="e.g. Anil Sharma"></div>
+                            <div><label>Assign Unit</label><select id="new-member-group"></select></div>
                             <div class="full-span" id="custom-group-input-wrapper" style="display:none;"><label>Custom Unit Name</label><input type="text" id="custom-group-input"></div>
-                            <div style="grid-column: span 2;"><button id="add-member-btn">Add User</button></div>
-                            <div class="member-control-group full-span"><label>Remove User</label><select id="remove-member-select"></select></div>
-                            <div style="padding-top:15px;" class="full-span"><button id="remove-member-btn">Remove User</button></div>
-                        </div>
-                    </div>
-                </div>
-            </section>
+                            <div style="grid-column: span 2;"><button id="add-member-btn">Add User</button></div>
+                            <div class="member-control-group full-span"><label>Remove User</label><select id="remove-member-select"></select></div>
+                            <div style="padding-top:15px;" class="full-span"><button id="remove-member-btn">Remove User</button></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="about-content" class="tab-content" role="tabpanel">
+                <div class="energy-frame">
+                    <div class="about-dashboard">
+                        
+                        <div class="about-info-box about-hero-box col-span-12">
+                            <h4>// 01. SYSTEM_IDENTITY::MATRIX</h4>
+                            <p style="font-size: 13px; color: #ccc; margin: 0;">
+                                <strong style="color:#fff; font-size:15px; display:block; margin-bottom:5px;">Creative and Innovative Cell in Robotics (CICR)</strong>
+                                <span style="color:var(--color-accent);">"The Robotics Hub of JIIT-128"</span><br><br>
+                                Officially designated as the primary technical hub for Sector 128 Campus, operating under the <strong>Jaypee Youth Club (JYC)</strong>. A multidisciplinary innovation society integrating software, AI, and electronics.
+                            </p>
+                        </div>
+
+                        <div class="col-span-8">
+                            <div class="about-info-box" style="margin-bottom: 20px;">
+                                <h4>// 02. CORE_FUNCTIONS & DOMAINS</h4>
+                                <table class="domain-table">
+                                    <tr>
+                                        <th width="30%">DOMAIN</th>
+                                        <th>FOCUS AREAS</th>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="tech-badge">ROBOTICS</span></td>
+                                        <td>Embedded Systems, Arduino, IoT, PCB Design, Hardware Prototyping.</td>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="tech-badge">SOFTWARE</span></td>
+                                        <td>AI/ML, Computer Vision, Data Science, Full-stack Web Dev, App Dev.</td>
+                                    </tr>
+                                </table>
+
+                                <div style="margin-top: 15px; padding-top:10px; border-top:1px solid #333;">
+                                    <strong style="color:#fff; font-size:11px; text-transform:uppercase;">Key Events Protocol:</strong>
+                                    <div style="margin-top:5px; display:flex; gap:5px; flex-wrap:wrap;">
+                                        <span class="tech-badge" style="border-color:var(--color-tinker); color:var(--color-tinker);">TechTonic (Flagship)</span>
+                                        <span class="tech-badge">Circuit Rush</span>
+                                        <span class="tech-badge">Robo Soccer</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-span-4" style="display:flex; flex-direction:column; gap:20px;">
+                            <div class="about-info-box">
+                                <h4>// 03. COMMAND_HIERARCHY</h4>
+                                <ul style="list-style: none; padding: 0; font-size: 12px; color: #ccc;">
+                                    <li style="margin-bottom: 8px;"><span style="color: var(--color-tinker);">■</span> <strong style="color:#fff;">Heads (4th Yr)</strong><br>Strategy & Mentorship</li>
+                                    <li style="margin-bottom: 8px;"><span style="color: var(--color-accent);">■</span> <strong style="color:#fff;">Coordinators (3rd Yr)</strong><br>Operations & Events</li>
+                                    <li style="margin-bottom: 8px;"><span style="color: var(--color-success);">■</span> <strong style="color:#fff;">Core Team (2nd Yr)</strong><br>Project Execution</li>
+                                    <li><span style="color: #888;">■</span> <strong style="color:#fff;">Volunteers (1st Yr)</strong><br>Learning</li>
+                                </ul>
+                            </div>
+
+                            <div class="connect-grid" style="grid-template-columns: 1fr;">
+                                <a href="https://www.instagram.com/cicr_jiit?igsh=MWNib3pma2xiYXpqcQ==" target="_blank" class="social-card">
+                                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Instagram_logo_2016.svg/2048px-Instagram_logo_2016.svg.png" alt="Insta" class="social-icon-img" style="width:30px; height:30px;">
+                                    <span class="social-label">Instagram</span>
+                                </a>
+                                <a href="https://www.linkedin.com/company/cicrjiit128/" target="_blank" class="social-card">
+                                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/LinkedIn_logo_initials.png/960px-LinkedIn_logo_initials.png" alt="LinkedIn" class="social-icon-img" style="width:30px; height:30px;">
+                                    <span class="social-label">LinkedIn</span>
+                                </a>
+                                <a href="https://www.cicr.in/" target="_blank" class="social-card">
+                                    <img src="https://i.pinimg.com/736x/67/0e/af/670eaf4523e896c4e587bc2b87ab0f4a.jpg" alt="Web" class="social-icon-img" style="border-radius: 50%; width:30px; height:30px;">
+                                    <span class="social-label">Web Portal</span>
+                                </a>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </section>
 
             <section id="account-content" class="tab-content" role="tabpanel">
                 <div class="energy-frame">
@@ -1417,7 +1575,7 @@ const PASSWORD = "CICRMEET25";
 const SECURITY_PIN = "1407"; // SECURITY KEY
 let ALL_GROUPS = ["4th Year", "3rd Year", "2nd Year", "1st Year"];
 const DEFAULT_STUDENTS = [
-	"4th Year: Archit Jain", "3rd Year: Yasharth", "3rd Year: Dhruvi Gupta", "3rd Year: Aryan Varshney", "2nd Year: Aradhaya", "2nd Year: Gunjan", "2nd Year: Aman",
+	"4th Year: Archit Jain", "3rd Year: Yasharth", "3rd Year: Dhruvi Gupta", "3rd Year: Aryan Varshney", "2nd Year: Aradhaya", "2nd Year: Aman",
     "1st Year: Divyam Jain", "1st Year: Bhuwan Dhanwani", "1st Year: Kartik Virmani", "1st Year: Kshitika Barnwal", "1st Year: Kumar Shaurya", "1st Year: Vishal Tomar",
     "1st Year: ABHINAV KUMAR SINHA", "1st Year: Yashna Mehta", "1st Year: Agamjot Singh", "1st Year: Labhansh Vashisht", "1st Year: Mohd Nauman Ali", "1st Year: Palash Mittal",
     "1st Year: Priyanshi Saini", "1st Year: Sanjana Kumari", "1st Year: Vardaan Saxena", "1st Year: Pulkit Sukhija", "1st Year: Sanskar Singhal", "1st Year: Paarth Sachdeva",
@@ -1491,6 +1649,15 @@ const projectTinkercadInput = document.getElementById("project-tinkercad");
 const addProjectBtn = document.getElementById("add-project-btn");
 const liveProjectsList = document.getElementById("live-projects-list");
 
+// EQUIPMENT ELEMENTS
+const eqNameInput = document.getElementById('eq-name');
+const eqMemberSelect = document.getElementById('eq-member-select');
+const eqGroupInput = document.getElementById('eq-group');
+const eqIssueDate = document.getElementById('eq-issue-date');
+const eqReturnDate = document.getElementById('eq-return-date');
+const addEqBtn = document.getElementById('add-equipment-btn');
+const eqLogBody = document.getElementById('equipment-log-body');
+
 const chatDisplay = document.getElementById('chat-display');
 const chatInput = document.getElementById('chat-input');
 const chatSendBtn = document.getElementById('chat-send-btn');
@@ -1531,7 +1698,7 @@ let isRegistering = false;
 let currentUser = null;
 let generatedOTP = null;
 let isVerified = false;
-let isAdminUnlocked = false; // NEW FLAG FOR ADMIN/LOGS
+let isAdminUnlocked = false; 
 
 function getStoredUsers() {
     return JSON.parse(localStorage.getItem(USERS_KEY) || "{}");
@@ -1692,7 +1859,7 @@ function updateProfile() {
 function logout() {
     operateGate(() => {
         currentUser = null;
-        isAdminUnlocked = false; // Reset security
+        isAdminUnlocked = false; 
         userAvatarDisplay.style.display = 'none';
         appContent.style.display = 'none';
         loginScreen.style.display = 'block';
@@ -1756,19 +1923,18 @@ function animateParticles() {
 initParticles(); animateParticles();
 
 // --- TAB LOGIC WITH SECURITY CHECK ---
-let pendingTabId = null; // Store tab attempted to access
+let pendingTabId = null; 
 
 function switchTab(targetTabId) {
-    // SECURITY CHECK FOR ADMIN AND HISTORY(LOGS)
-    if ((targetTabId === 'admin' || targetTabId === 'history') && !isAdminUnlocked) {
+    // SECURITY CHECK FOR ADMIN, LOGS, AND EQUIPMENT
+    if ((targetTabId === 'admin' || targetTabId === 'history' || targetTabId === 'equipment') && !isAdminUnlocked) {
         pendingTabId = targetTabId;
         securityOverlay.style.display = 'flex';
         securityPinInput.value = '';
         securityPinInput.focus();
-        return; // Stop execution
+        return; 
     }
 
-    // Normal switch logic
     tabLinks.forEach(link => { link.classList.remove('active'); link.setAttribute('aria-selected', 'false'); });
     tabContents.forEach(content => { content.classList.remove('active'); content.style.display = 'none'; });
     const activeLink = document.querySelector(`.tab-link[data-tab="${targetTabId}"]`);
@@ -1782,6 +1948,7 @@ function switchTab(targetTabId) {
         else if (targetTabId === 'chat') { loadChat(); scrollChat(); }
         else if (targetTabId === 'admin') { populateGroupSelects(); populateRemoveMemberDropdown(); }
         else if (targetTabId === 'account') { loadUserProfile(); }
+        else if (targetTabId === 'equipment') { populateEqMemberDropdown(); renderEquipmentLogs(); }
     }
 }
 
@@ -1858,7 +2025,6 @@ function renderProjects() {
         return;
     }
 
-    // Sort: Live first, then Completed
     projects.sort((a, b) => (a.type === 'live' ? -1 : 1));
 
     projects.forEach(p => {
@@ -1907,12 +2073,102 @@ window.deleteProject = function(id) {
     renderProjects();
 };
 
+// --- EQUIPMENT TRACKER FUNCTIONS ---
+function populateEqMemberDropdown() {
+    eqMemberSelect.innerHTML = '<option value="" disabled selected>-- Select Member --</option>';
+    h4_students.forEach(student => {
+        const option = document.createElement("option");
+        option.value = student;
+        option.textContent = student.includes(": ") ? student.split(": ")[1] : student;
+        eqMemberSelect.appendChild(option);
+    });
+}
+
+function saveEquipment() {
+    const name = eqNameInput.value.trim();
+    const member = eqMemberSelect.value;
+    const group = eqGroupInput.value.trim();
+    const issue = eqIssueDate.value;
+    const ret = eqReturnDate.value;
+
+    if (!name || !member || !issue) {
+        alert("Please fill Equipment Name, Member, and Issue Date.");
+        return;
+    }
+
+    operateGate(() => {
+        const logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]");
+        const newLog = {
+            id: Date.now(),
+            name,
+            member: member.split(": ")[1],
+            group,
+            issue,
+            return: ret,
+            status: "ISSUED"
+        };
+        logs.unshift(newLog);
+        localStorage.setItem("cicrEquipment", JSON.stringify(logs));
+        
+        showSuccessAnimation();
+        eqNameInput.value = ""; eqGroupInput.value = "";
+        renderEquipmentLogs();
+    });
+}
+
+function renderEquipmentLogs() {
+    const logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]");
+    eqLogBody.innerHTML = "";
+
+    if (logs.length === 0) {
+        eqLogBody.innerHTML = '<tr><td colspan="5" style="text-align:center; opacity:0.5;">No active equipment logs.</td></tr>';
+        return;
+    }
+
+    logs.forEach(log => {
+        const isSubmitted = log.status === "SUBMITTED";
+        eqLogBody.innerHTML += `
+            <tr>
+                <td style="${isSubmitted ? 'opacity:0.5; text-decoration:line-through;' : 'color:var(--color-accent);'}">${log.name}</td>
+                <td>${log.member}<br><small style="color:#666">${log.group}</small></td>
+                <td style="font-size:11px;">Out: ${log.issue}<br>Due: ${log.return || 'N/A'}</td>
+                <td>
+                    <span style="color: ${isSubmitted ? 'var(--color-success)' : 'var(--color-tinker)'}; font-weight:bold; font-size:10px;">
+                        ${log.status}
+                    </span>
+                </td>
+                <td>
+                    ${!isSubmitted ? `<button onclick="toggleEqStatus(${log.id})" class="status-button" style="padding:4px 8px !important; border:1px solid var(--color-success) !important; color:var(--color-success) !important;">Return</button>` : 
+                    `<button onclick="deleteEqLog(${log.id})" class="status-button" style="padding:4px 8px !important; border:1px solid var(--color-danger) !important; color:var(--color-danger) !important;">Del</button>`}
+                </td>
+            </tr>
+        `;
+    });
+}
+
+window.toggleEqStatus = function(id) {
+    let logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]");
+    const log = logs.find(l => l.id === id);
+    if(log) {
+        log.status = "SUBMITTED";
+        localStorage.setItem("cicrEquipment", JSON.stringify(logs));
+        renderEquipmentLogs();
+    }
+};
+
+window.deleteEqLog = function(id) {
+    if(!confirm("Delete this log permanently?")) return;
+    let logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]");
+    logs = logs.filter(l => l.id !== id);
+    localStorage.setItem("cicrEquipment", JSON.stringify(logs));
+    renderEquipmentLogs();
+};
+
 // --- CHAT LOGIC ---
 function loadChat() {
     const chat = JSON.parse(localStorage.getItem("cicrChat") || "[]");
     chatDisplay.innerHTML = "";
     if(chat.length === 0) {
-        // Welcome message
         chatDisplay.innerHTML = `<div class="chat-message msg-other"><span class="msg-meta">SYSTEM | NOW</span>Welcome to the Secure Channel. Start communicating.</div>`;
     }
     chat.forEach(msg => {
@@ -1935,7 +2191,7 @@ function postMessage() {
         time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
     };
     chat.push(msg);
-    if(chat.length > 50) chat.shift(); // Keep last 50
+    if(chat.length > 50) chat.shift(); 
     localStorage.setItem("cicrChat", JSON.stringify(chat));
     
     chatInput.value = "";
@@ -1965,12 +2221,13 @@ function loadStudents() {
         populateAttendanceTakerDropdown();
         populateRemoveMemberDropdown();
         populateSchedulingDropdowns();
+        populateEqMemberDropdown();
     } else { 
         h4_students = DEFAULT_STUDENTS; 
         saveStudents(); 
     }
 }
-function saveStudents() { localStorage.setItem("cicrMembers", JSON.stringify(h4_students)); populateAttendanceTakerDropdown(); populateRemoveMemberDropdown(); populateSchedulingDropdowns(); }
+function saveStudents() { localStorage.setItem("cicrMembers", JSON.stringify(h4_students)); populateAttendanceTakerDropdown(); populateRemoveMemberDropdown(); populateSchedulingDropdowns(); populateEqMemberDropdown(); }
 
 // --- UI FUNCTIONS ---
 function updateClock() {
@@ -2052,6 +2309,7 @@ function removeMember() {
 	if (index > -1) { h4_students.splice(index, 1); saveStudents(); alert(`Success: User removed.`); } renderStudents();
 }
 function getSelectedGroups() { return Array.from(yearSelect.selectedOptions).map(o => o.value); }
+
 function renderStudents() {
 	attendanceList.innerHTML = ""; attendanceState = {};
 	const selectedGroups = getSelectedGroups();
@@ -2066,14 +2324,25 @@ function renderStudents() {
 		const studentKey = studentData;
 		attendanceState[studentKey] = "MARK";
 		const listItem = document.createElement("li"); listItem.className = "student-item unmarked"; listItem.id = studentKey.replace(/[^a-zA-Z0-9]/g, "_");
-		listItem.innerHTML = `<div class="student-info"><div><div class="student-name">${name}</div><div class="student-id">${role}</div></div></div><div class="status-controls"><button class="status-button btn-present" data-key="${studentKey}" style="opacity: 0.4;">Present</button><button class="status-button btn-absent" data-key="${studentKey}" style="opacity: 0.4;">Absent</button><button class="status-button btn-unmarked" data-key="${studentKey}" style="opacity: 1.0;">Reset</button></div>`;
+		
+        listItem.innerHTML = `
+            <div class="student-info">
+                <div class="student-name">${name}</div>
+                <div class="student-id">${role}</div>
+            </div>
+            <div class="status-controls">
+                <button class="status-button btn-present" data-key="${studentKey}" style="opacity: 0.4;">Present</button>
+                <button class="status-button btn-absent" data-key="${studentKey}" style="opacity: 0.4;">Absent</button>
+                <button class="status-button btn-unmarked" data-key="${studentKey}" style="opacity: 1.0;">Unmarked</button>
+            </div>
+        `;
 		attendanceList.appendChild(listItem);
 	});
 	attendanceList.querySelectorAll(".status-button").forEach(button => {
 		button.addEventListener("click", e => {
 			const key = e.target.getAttribute("data-key");
 			const status = e.target.textContent.toUpperCase();
-			attendanceState[key] = (status === "RESET") ? "MARK" : status;
+			attendanceState[key] = (status === "UNMARKED") ? "MARK" : status;
 			const listItem = document.getElementById(key.replace(/[^a-zA-Z0-9]/g, "_"));
 			const controls = listItem.querySelector(".status-controls");
 			controls.querySelectorAll(".status-button").forEach(btn => btn.style.opacity = '0.4');
@@ -2084,6 +2353,7 @@ function renderStudents() {
 	});
 	updateSummary();
 }
+
 function updateSummary() {
 	let presentCount = 0, absentCount = 0, absentNames = [];
 	for (const key in attendanceState) { if (attendanceState[key] === "PRESENT") presentCount++; else if (attendanceState[key] === "ABSENT") { absentCount++; absentNames.push(key.split(": ")[1]); } }
@@ -2136,18 +2406,16 @@ function removeSelectedRecords() {
     history = history.filter(r => !ids.includes(r.id)); localStorage.setItem("attendanceHistory", JSON.stringify(history)); renderHistory();
 }
 
-// FIX: CSV EXPORT FUNCTION
 function exportToCSV() {
     const history = JSON.parse(localStorage.getItem("attendanceHistory") || "[]");
     if (history.length === 0) { alert("No logs to export."); return; }
 
     let csvContent = "data:text/csv;charset=utf-8,";
-    // Header Row
     csvContent += "Date,Topic,Group,Recorder,Summary,Student Name,Student Group,Status\n";
 
     history.forEach(record => {
         const date = record.date;
-        const topic = record.topic.replace(/,/g, " "); // Remove commas to prevent CSV break
+        const topic = record.topic.replace(/,/g, " "); 
         const group = record.group.replace(/,/g, " ");
         const recorder = record.taker.replace(/,/g, " ");
         const summary = record.summary.replace(/,/g, " ");
@@ -2167,9 +2435,7 @@ function exportToCSV() {
     document.body.removeChild(link);
 }
 
-// --- NEW SCHEDULING FUNCTION ---
 function handleScheduleMeeting() {
-    // 1. Gather Values
     const initiator = scheduleInitiatorSelect.value;
     const recipient = scheduleRecipientSelect.value;
     const senderEmail = senderEmailInput.value.trim();
@@ -2180,13 +2446,11 @@ function handleScheduleMeeting() {
     const locType = scheduleLocationTypeSelect.value;
     const locDetails = scheduleLocationDetailsInput.value.trim();
 
-    // 2. Validation
     if (!recipientEmail || !subject || !date || !time) {
-        alert("Error: Please fill in the required fields (Recipient Email, Subject, Date, Time).");
+        alert("Error: Please fill in the required fields.");
         return;
     }
 
-    // 3. Construct Email Body
     const body = `Meeting Invitation\n\n` +
                  `Topic: ${subject}\n` +
                  `Date: ${date}\n` +
@@ -2196,10 +2460,7 @@ function handleScheduleMeeting() {
                  `Please confirm your availability.\n\n` +
                  `Regards,\n${initiator || 'CICR Admin'}`;
 
-    // 4. Create Mailto Link (Generates the email draft)
     const mailtoLink = `mailto:${recipientEmail}?cc=${senderEmail}&subject=${encodeURIComponent("INVITE: " + subject)}&body=${encodeURIComponent(body)}`;
-
-    // 5. Execute
     window.location.href = mailtoLink;
 }
 
@@ -2240,16 +2501,11 @@ function calculatePersonalReport() {
 function initializeListeners() {
 	setInterval(updateClock, 1000); updateClock();
     
-    // UPDATED SPLASH SCREEN LISTENER TO TRIGGER GATE
     splashScreen.addEventListener('click', () => { 
-        // 1. Fade out Splash
         splashScreen.style.opacity = '0'; 
         setTimeout(() => { 
             splashScreen.style.display = 'none'; 
-            
-            // 2. Trigger Gate Animation
             operateGate(() => {
-                // 3. Show Login Screen
                 loginScreen.style.display = 'block'; 
             });
         }, 500); 
@@ -2257,7 +2513,6 @@ function initializeListeners() {
 	
     toggleAuthBtn.addEventListener("click", toggleAuthMode);
     
-    // LOGIN & REGISTER HANDLER
     loginForm.addEventListener("submit", (e) => {
 		e.preventDefault();
         const enteredUser = usernameInput.value.trim();
@@ -2277,7 +2532,6 @@ function initializeListeners() {
                 return;
             }
 
-            // REGISTER
             const name = regNameInput.value.trim();
             const year = regYearSelect.value;
             const batch = regBatchInput.value.trim();
@@ -2293,7 +2547,6 @@ function initializeListeners() {
                 loginError.style.display = 'block';
             } else {
                 operateGate(() => {
-                    // SAVE NEW USER OBJECT
                     users[enteredUser] = {
                         id: enteredUser,
                         password: enteredPass,
@@ -2303,29 +2556,24 @@ function initializeListeners() {
                     };
                     saveStoredUsers(users);
                     alert("Account Created! You can now login.");
-                    toggleAuthMode(); // Switch back to login view
+                    toggleAuthMode(); 
                 });
             }
         } else {
-            // LOGIN
             operateGate(() => {
-                // 1. Check Master Admin
                 if (enteredUser === USERNAME && enteredPass === PASSWORD) {
                     currentUser = { id: "ADMIN", name: "Administrator", year: "Staff", batch: "N/A" };
                     loginSuccess();
                 } 
-                // 2. Check Personal User (Object check)
                 else if (users[enteredUser] && users[enteredUser].password === enteredPass) {
                     currentUser = users[enteredUser];
                     loginSuccess();
                 } 
-                // 3. Fallback for old string-only passwords
                 else if (users[enteredUser] === enteredPass) {
                      currentUser = { id: enteredUser, name: "Member", year: "N/A", batch: "N/A" };
                      loginSuccess();
                 }
                 else { 
-                    // Manual Gate Re-open if failed
                     setTimeout(() => { techGate.classList.remove('active'); }, 500);
                     loginError.textContent = "Access Denied. Invalid Credentials.";
                     loginError.style.display = 'block'; 
@@ -2340,7 +2588,6 @@ function initializeListeners() {
         const successScreen = document.getElementById('success-screen');
         successScreen.style.display = 'flex';
         
-        // Populate profile immediately
         loadUserProfile();
 
         setTimeout(() => {
@@ -2361,7 +2608,6 @@ function initializeListeners() {
     removeSelectedBtn.addEventListener("click", removeSelectedRecords);
 	exportExcelBtn.addEventListener("click", exportToCSV);
     
-    // --- ADDED EVENT LISTENER FOR SCHEDULING ---
     scheduleMeetingBtn.addEventListener("click", handleScheduleMeeting);
 
     addPermanentGroupBtn.addEventListener("click", () => { if(addPermanentGroup(newPermanentGroupInput.value)) { alert("Group Added"); newPermanentGroupInput.value=""; } else alert("Error"); });
@@ -2369,17 +2615,18 @@ function initializeListeners() {
 	addMemberBtn.addEventListener("click", addMember);
 	removeMemberBtn.addEventListener("click", removeMember);
     addProjectBtn.addEventListener("click", saveProject);
+    addEqBtn.addEventListener('click', saveEquipment); // Equipment Listener
     chatSendBtn.addEventListener("click", postMessage);
     chatInput.addEventListener("keypress", (e) => { if(e.key === 'Enter') postMessage(); });
     updateProfileBtn.addEventListener("click", updateProfile);
     logoutBtn.addEventListener("click", logout);
     userAvatarDisplay.addEventListener("click", () => switchTab('account'));
     
-    // PHOTO UPLOAD LISTENER
     profilePicInput.addEventListener('change', handleProfilePicUpload);
 
     const todayISO = new Date().toISOString().split('T')[0];
     attendanceDate.value = todayISO; scheduleDateInput.value = todayISO; projectStartInput.value = todayISO;
+    eqIssueDate.value = todayISO; // Equipment Date Default
     document.getElementById('open-calendar-btn').addEventListener('click', () => attendanceDate.showPicker());
     document.getElementById('open-calendar-scheduler-btn').addEventListener('click', () => scheduleDateInput.showPicker());
     document.getElementById('open-calendar-start-btn').addEventListener('click', () => projectStartInput.showPicker());
@@ -2389,5 +2636,4 @@ function initializeListeners() {
 initializeListeners();
 </script>
 </body>
-
 </html>
