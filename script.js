@@ -1,7 +1,7 @@
 // --- SUPABASE CONFIGURATION ---
 const SUPABASE_URL = "https://qjpmsepigcjqkptfptnt.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqcG1zZXBpZ2NqcWtwdGZwdG50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwNjA1NTIsImV4cCI6MjA4MTYzNjU1Mn0.VsVa4ZwYDz9YTWiVjpf96LECjRbm0Jshs4AEys_eHRQ";
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // --- OLD CONFIG (KEEPING FOR NOW) ---
 const USERNAME = "CICRMEETIN";
