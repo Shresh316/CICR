@@ -1080,50 +1080,32 @@ function initializeListeners() {
         }
 
         if (isRegistering) {
-            // --- REGISTER (SIGN UP) ---
-            const name = regNameInput.value.trim();
-            const year = regYearSelect.value;
-            const batch = regBatchInput.value.trim();
+            // ... (Your existing registration logic is here) ...
+            // ... (Keep the existing code inside this if block) ...
+            
+            // ... CASE A and CASE B logic ...
 
-            if (!name || !batch) {
-                alert("Name and Batch are required.");
-                return;
-            }
+        } else {
+            // [FIX STARTS HERE] -> ADD THIS ELSE BLOCK
+            // --- STANDARD LOGIN ---
+            loginBtn.textContent = "VERIFYING...";
+            loginBtn.disabled = true;
 
-            if (isVerified) {
-                // CASE A: User verified Email via OTP -> They are ALREADY logged in.
-                // We just need to Update their profile with Name, Batch, Password.
-                
-                const { data, error } = await supabaseClient.auth.updateUser({
-                    password: password,
-                    data: { full_name: name, year: year, batch: batch }
-                });
+            const { data, error } = await supabaseClient.auth.signInWithPassword({
+                email: email,
+                password: password
+            });
 
-                if (error) {
-                    alert("Profile Save Failed: " + error.message);
-                } else {
-                    alert("Registration Complete!");
-                    handleLoginSuccess(data.user);
-                }
-
+            if (error) {
+                loginError.textContent = "Login Failed: " + error.message;
+                loginError.style.display = 'block';
+                loginBtn.textContent = "LOGIN";
+                loginBtn.disabled = false;
             } else {
-                // CASE B: Standard Sign Up (No OTP used, or OTP failed)
-                // This acts as a fallback to standard Email/Pass signup
-                const { data, error } = await supabaseClient.auth.signUp({
-                    email: email,
-                    password: password,
-                    options: {
-                        data: { full_name: name, year: year, batch: batch }
-                    }
-                });
-
-                if (error) {
-                    alert("Registration Failed: " + error.message);
-                } else {
-                    alert("Registration Successful! Signing you in...");
-                    if(data.user) handleLoginSuccess(data.user);
-                }
+                // Success!
+                handleLoginSuccess(data.user);
             }
+            // [FIX ENDS HERE]
         }
     });
 
