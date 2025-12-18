@@ -500,55 +500,58 @@ function saveProject() {
         renderProjects();
     });
 }
-function renderProjects() {
-    const projects = loadProjects();
-    liveProjectsList.innerHTML = "";
+async function renderProjects() {
+    liveProjectsList.innerHTML = "<p>Loading projects...</p>";
 
+    const { data: projects, error } = await supabaseClient
+        .from('projects')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error || !projects) {
+        liveProjectsList.innerHTML = '<p>Error loading projects.</p>';
+        return;
+    }
+
+    liveProjectsList.innerHTML = "";
     if (projects.length === 0) {
         liveProjectsList.innerHTML = '<p style="opacity:0.6; font-size:13px;">Shelf is empty. Add a project above.</p>';
         return;
     }
 
+    // Sort: Live projects first
     projects.sort((a, b) => (a.type === 'live' ? -1 : 1));
 
     projects.forEach(p => {
         let techTags = "";
-        if(p.tech) {
-            techTags = p.tech.split(',').map(t => `<span class="project-tech-tag">${t.trim()}</span>`).join('');
+        if(p.tech_stack) {
+            techTags = p.tech_stack.split(',').map(t => `<span class="project-tech-tag">${t.trim()}</span>`).join('');
         }
 
         const html = `
         <div class="project-card">
-            <h4>${p.name} <span style="font-size:10px; color:${p.type === 'live' ? 'var(--color-success)' : '#888'}; border:1px solid currentColor; padding:2px 5px; border-radius:2px; vertical-align:middle;">${p.type === 'live' ? 'LIVE' : 'ARCHIVED'}</span></h4>
-            
-            <div class="project-info">
-                <strong>Lead/Member:</strong> ${p.members}
-            </div>
-            
-            <div class="project-info" style="font-style:italic; color:#aaa; margin-bottom:10px;">
-                "${p.purpose}"
-            </div>
-
-            <div class="project-info">
-                <strong>Tech Stack:</strong><br>
-                ${techTags || 'Not Specified'}
-            </div>
-
-            <div class="project-info" style="margin-top:10px;">
-                <strong>Timeline:</strong> ${p.start} ${p.end ? 'to ' + p.end : '(Ongoing)'}
-            </div>
-
+            <h4>${p.title} <span style="font-size:10px; color:${p.type === 'live' ? 'var(--color-success)' : '#888'}; border:1px solid currentColor; padding:2px 5px; border-radius:2px; vertical-align:middle;">${p.type === 'live' ? 'LIVE' : 'ARCHIVED'}</span></h4>
+            <div class="project-info"><strong>Lead/Member:</strong> ${p.members}</div>
+            <div class="project-info" style="font-style:italic; color:#aaa; margin-bottom:10px;">"${p.purpose}"</div>
+            <div class="project-info"><strong>Tech Stack:</strong><br>${techTags || 'Not Specified'}</div>
+            <div class="project-info" style="margin-top:10px;"><strong>Timeline:</strong> ${p.date_start} ${p.date_end ? 'to ' + p.date_end : '(Ongoing)'}</div>
             <div class="project-actions">
-                ${p.link ? `<a href="${p.link}" target="_blank" class="project-btn-link">🔗 Code / Github</a>` : ''}
-                ${p.tinkercad ? `<a href="${p.tinkercad}" target="_blank" class="project-btn-link btn-tinkercad">⚡ View on Tinkercad</a>` : ''}
+                ${p.link_code ? `<a href="${p.link_code}" target="_blank" class="project-btn-link">🔗 Code / Github</a>` : ''}
+                ${p.link_tinkercad ? `<a href="${p.link_tinkercad}" target="_blank" class="project-btn-link btn-tinkercad">⚡ View on Tinkercad</a>` : ''}
             </div>
-
             <button class="btn-delete-project" onclick="deleteProject(${p.id})">DELETE</button>
         </div>
         `;
         liveProjectsList.innerHTML += html;
     });
 }
+
+window.deleteProject = async function(id) {
+    if(!confirm("Delete this project from the cloud?")) return;
+    const { error } = await supabaseClient.from('projects').delete().eq('id', id);
+    if(error) alert("Error deleting: " + error.message);
+    else renderProjects();
+};
 window.deleteProject = function(id) {
     if(!confirm("Delete this project from the shelf?")) return;
     let projects = loadProjects();
@@ -687,32 +690,68 @@ function scrollChat() {
 }
 
 // --- DATA FUNCTIONS ---
-function loadGroups() {
-    const storedGroups = localStorage.getItem("cicrGroups");
-    if (storedGroups) ALL_GROUPS = JSON.parse(storedGroups);
-    else { ALL_GROUPS = ["4th Year", "3rd Year", "2nd Year", "1st Year"]; saveGroups(); }
+// --- NEW DATA LOADING FUNCTIONS ---
+async function loadGroups() {
+    // Try to fetch from Supabase
+    const { data, error } = await supabaseClient
+        .from('app_settings')
+        .select('data_value')
+        .eq('category', 'groups_list')
+        .single();
+    
+    if (data && data.data_value) {
+        ALL_GROUPS = data.data_value;
+    } else {
+        // If not found (first run), save default to DB
+        ALL_GROUPS = ["4th Year", "3rd Year", "2nd Year", "1st Year"];
+        saveGroups();
+    }
+    populateGroupSelects();
 }
-function saveGroups() { localStorage.setItem("cicrGroups", JSON.stringify(ALL_GROUPS)); populateGroupSelects(); renderStudents(); }
-function addPermanentGroup(groupName) {
-    const trimmedName = groupName.trim();
-    if (trimmedName === "" || ALL_GROUPS.map(g => g.toLowerCase()).includes(trimmedName.toLowerCase())) return false;
-    ALL_GROUPS.push(trimmedName); saveGroups(); return true;
+
+async function saveGroups() {
+    // Save to Supabase
+    const { error } = await supabaseClient
+        .from('app_settings')
+        .upsert({ category: 'groups_list', data_value: ALL_GROUPS }, { onConflict: 'category' });
+        
+    if(error) console.error("Error saving groups:", error);
+    populateGroupSelects();
+    renderStudents();
 }
-function loadStudents() {
-	const storedStudents = localStorage.getItem("cicrMembers");
-	if (storedStudents) {
-        h4_students = JSON.parse(storedStudents);
-        populateAttendanceTakerDropdown();
-        populateRemoveMemberDropdown();
-        populateSchedulingDropdowns();
-        populateEqMemberDropdown();
+
+async function loadStudents() {
+    const { data, error } = await supabaseClient
+        .from('app_settings')
+        .select('data_value')
+        .eq('category', 'members_list')
+        .single();
+
+	if (data && data.data_value) {
+        h4_students = data.data_value;
     } else { 
         h4_students = DEFAULT_STUDENTS; 
         saveStudents(); 
     }
+    // Update all dropdowns that depend on students
+    populateAttendanceTakerDropdown();
+    populateRemoveMemberDropdown();
+    populateSchedulingDropdowns();
+    populateEqMemberDropdown();
 }
-function saveStudents() { localStorage.setItem("cicrMembers", JSON.stringify(h4_students)); populateAttendanceTakerDropdown(); populateRemoveMemberDropdown(); populateSchedulingDropdowns(); populateEqMemberDropdown(); }
 
+async function saveStudents() { 
+    const { error } = await supabaseClient
+        .from('app_settings')
+        .upsert({ category: 'members_list', data_value: h4_students }, { onConflict: 'category' });
+        
+    if(error) console.error("Error saving members:", error);
+    
+    populateAttendanceTakerDropdown(); 
+    populateRemoveMemberDropdown(); 
+    populateSchedulingDropdowns(); 
+    populateEqMemberDropdown(); 
+}
 // --- UI FUNCTIONS ---
 function updateClock() {
 	const now = new Date();
@@ -855,28 +894,60 @@ function saveData() {
     const unmarkedCount = Object.values(attendanceState).filter(s => s === "MARK").length;
 	if (unmarkedCount > 0 && !confirm(`Warning: ${unmarkedCount} users unmarked. Commit?`)) return;
 	
-    operateGate(() => {
-        const history = JSON.parse(localStorage.getItem("attendanceHistory") || "[]");
-        const attendanceRecords = Object.keys(attendanceState).map(key => { const [group, name] = key.split(": "); return { name, group, status: attendanceState[key] }; });
-        const newRecord = { id: Date.now(), date: attendanceDate.value, topic: getMeetingTopic(), group: selectedGroups.join(', '), taker: attendanceTakerSelect.options[attendanceTakerSelect.selectedIndex].textContent, summary: meetingSummaryInput.value.trim() || "No summary.", attendance: attendanceRecords };
-        history.unshift(newRecord); localStorage.setItem("attendanceHistory", JSON.stringify(history)); 
-        
-        showSuccessAnimation();
-        
-        Array.from(yearSelect.options).forEach(o => o.selected = false); attendanceState = {}; attendanceTakenBy.textContent = "Attendance Recorded By: [None Selected]"; renderStudents();
+  operateGate(async () => {
+        const { error } = await supabaseClient
+            .from('projects')
+            .insert({
+                title: name,
+                type: type,
+                members: members,
+                link_code: link,
+                date_start: start,
+                date_end: end || null,
+                purpose: purpose,
+                tech_stack: tech,
+                link_tinkercad: tinkercad
+            });
+
+        if (error) {
+            alert("Error saving project: " + error.message);
+        } else {
+            showSuccessAnimation();
+            projectNameInput.value = ""; projectMembersInput.value = ""; projectLinkInput.value = ""; 
+            projectStartInput.value = ""; projectEndInput.value = ""; projectPurposeInput.value = "";
+            projectTechInput.value = ""; projectTinkercadInput.value = "";
+            renderProjects();
+        }
     });
 }
-function renderHistory() {
-	const history = JSON.parse(localStorage.getItem("attendanceHistory") || "[]");
+async function renderHistory() {
+    historyListElement.innerHTML = "<li>Loading logs from cloud...</li>";
+    
+    // Fetch from Supabase (Newest first)
+    const { data: history, error } = await supabaseClient
+        .from('attendance_logs')
+        .select('*')
+        .order('date', { ascending: false });
+
+    if (error) {
+        historyListElement.innerHTML = `<li style="color:red">Error loading logs: ${error.message}</li>`;
+        return;
+    }
+
 	historyListElement.innerHTML = history.length === 0 ? '<li style="padding: 15px; opacity: 0.6;">No logs available.</li>' : "";
+    
     document.getElementById("remove-selected-btn").style.display = history.length ? 'block' : 'none';
 	document.getElementById("clear-history-btn").style.display = history.length ? 'block' : 'none';
-	history.forEach(record => {
+	
+    history.forEach(record => {
 		const listItem = document.createElement("li"); listItem.className = "history-item";
-		const presentCount = record.attendance.filter(a => a.status === "PRESENT").length;
-		const totalCount = record.attendance.filter(a => a.status !== "MARK").length;
+        // Note: record.attendance_data is the JSON list from DB
+        const attData = record.attendance_data || [];
+		const presentCount = attData.filter(a => a.status === "PRESENT").length;
+		const totalCount = attData.filter(a => a.status !== "MARK").length;
         const percentage = totalCount > 0 ? ((presentCount / totalCount) * 100).toFixed(0) : 0;
-		listItem.innerHTML = `<div class="history-header-wrapper"><input type="checkbox" class="history-checkbox" data-id="${record.id}" style="width: auto; margin-right: 10px;"><button class="history-header-btn" onclick="this.parentElement.nextElementSibling.style.display = this.parentElement.nextElementSibling.style.display === 'none' ? 'block' : 'none'"><span>[${record.date}] ${record.topic}</span><span style="font-weight: 700; color: var(--color-accent);">${presentCount}/${totalCount} (${percentage}%)</span></button></div><div class="history-details" style="display:none;"><p><strong>Recorder:</strong> ${record.taker}</p><p><strong>Summary:</strong> ${record.summary}</p><p><strong>Full Record:</strong></p><ul class="full-record-list">${record.attendance.map(a => `<li style="color:${a.status === 'PRESENT' ? 'var(--color-success)' : 'var(--color-danger)'}">${a.name} [${a.status}]</li>`).join("")}</ul></div>`;
+        
+		listItem.innerHTML = `<div class="history-header-wrapper"><input type="checkbox" class="history-checkbox" data-id="${record.id}" style="width: auto; margin-right: 10px;"><button class="history-header-btn" onclick="this.parentElement.nextElementSibling.style.display = this.parentElement.nextElementSibling.style.display === 'none' ? 'block' : 'none'"><span>[${record.date}] ${record.topic}</span><span style="font-weight: 700; color: var(--color-accent);">${presentCount}/${totalCount} (${percentage}%)</span></button></div><div class="history-details" style="display:none;"><p><strong>Recorder:</strong> ${record.taker_name}</p><p><strong>Summary:</strong> ${record.summary}</p><p><strong>Full Record:</strong></p><ul class="full-record-list">${attData.map(a => `<li style="color:${a.status === 'PRESENT' ? 'var(--color-success)' : 'var(--color-danger)'}">${a.name} [${a.status}]</li>`).join("")}</ul></div>`;
 		historyListElement.appendChild(listItem);
 	});
 }
