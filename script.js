@@ -291,8 +291,12 @@ function updateProfile() {
     });
 }
 
-function logout() {
-    operateGate(() => {
+async function logout() {
+    operateGate(async () => {
+        // 1. Tell Supabase to sign out
+        await supabaseClient.auth.signOut();
+        
+        // 2. Clear local state
         currentUser = null;
         isAdminUnlocked = false; 
         userAvatarDisplay.style.display = 'none';
@@ -948,75 +952,58 @@ function initializeListeners() {
 	
     toggleAuthBtn.addEventListener("click", toggleAuthMode);
     
-    loginForm.addEventListener("submit", (e) => {
-		e.preventDefault();
-        const enteredUser = usernameInput.value.trim();
-        const enteredPass = passwordInput.value.trim();
+    loginForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const email = usernameInput.value.trim();
+        const password = passwordInput.value.trim();
 
-        if (!enteredUser || !enteredPass) {
-            loginError.textContent = "Please fill in all fields.";
+        if (!email || !password) {
+            loginError.textContent = "Please fill in email and password.";
             loginError.style.display = 'block';
             return;
         }
 
-        const users = getStoredUsers();
-
         if (isRegistering) {
-            if(!isVerified) {
-                alert("Please verify your phone/email via OTP first.");
-                return;
-            }
-
+            // --- REGISTER (SIGN UP) ---
             const name = regNameInput.value.trim();
             const year = regYearSelect.value;
             const batch = regBatchInput.value.trim();
 
             if (!name || !batch) {
-                loginError.textContent = "Name and Batch are required.";
-                loginError.style.display = 'block';
+                alert("Name and Batch are required.");
                 return;
             }
 
-            if (users[enteredUser]) {
-                loginError.textContent = "User already exists. Please login.";
-                loginError.style.display = 'block';
-            } else {
-                operateGate(() => {
-                    users[enteredUser] = {
-                        id: enteredUser,
-                        password: enteredPass,
-                        name: name,
-                        year: year,
-                        batch: batch
-                    };
-                    saveStoredUsers(users);
-                    alert("Account Created! You can now login.");
-                    toggleAuthMode(); 
-                });
-            }
-        } else {
-            operateGate(() => {
-                if (enteredUser === USERNAME && enteredPass === PASSWORD) {
-                    currentUser = { id: "ADMIN", name: "Administrator", year: "Staff", batch: "N/A" };
-                    loginSuccess();
-                } 
-                else if (users[enteredUser] && users[enteredUser].password === enteredPass) {
-                    currentUser = users[enteredUser];
-                    loginSuccess();
-                } 
-                else if (users[enteredUser] === enteredPass) {
-                     currentUser = { id: enteredUser, name: "Member", year: "N/A", batch: "N/A" };
-                     loginSuccess();
-                }
-                else { 
-                    setTimeout(() => { techGate.classList.remove('active'); }, 500);
-                    loginError.textContent = "Access Denied. Invalid Credentials.";
-                    loginError.style.display = 'block'; 
-                    passwordInput.value = ''; 
+            const { data, error } = await supabaseClient.auth.signUp({
+                email: email,
+                password: password,
+                options: {
+                    data: { full_name: name, year: year, batch: batch }
                 }
             });
+
+            if (error) {
+                alert("Registration Failed: " + error.message);
+            } else {
+                alert("Registration Successful! Signing you in...");
+                if(data.user) handleLoginSuccess(data.user);
+            }
+
+        } else {
+            // --- LOGIN (SIGN IN) ---
+            const { data, error } = await supabaseClient.auth.signInWithPassword({
+                email: email,
+                password: password
+            });
+
+            if (error) {
+                loginError.textContent = "Login Failed: " + error.message;
+                loginError.style.display = 'block';
+            } else {
+                handleLoginSuccess(data.user);
+            }
         }
-	});
+    });
 
     function loginSuccess() {
         loginScreen.style.display = 'none';
@@ -1067,5 +1054,30 @@ function initializeListeners() {
     document.getElementById('open-calendar-start-btn').addEventListener('click', () => projectStartInput.showPicker());
     document.getElementById('open-calendar-end-btn').addEventListener('click', () => projectEndInput.showPicker());
     loadGroups(); loadStudents();
+}
+// --- NEW SUPABASE LOGIN SUCCESS HANDLER ---
+function handleLoginSuccess(user) {
+    if(!user) return;
+    
+    // Map Supabase User to your App's format
+    currentUser = {
+        id: user.email,
+        name: user.user_metadata.full_name || "Member",
+        year: user.user_metadata.year || "N/A",
+        batch: user.user_metadata.batch || "N/A",
+        avatar: null 
+    };
+
+    loginScreen.style.display = 'none';
+    const successScreen = document.getElementById('success-screen');
+    successScreen.style.display = 'flex';
+    
+    loadUserProfile();
+
+    setTimeout(() => {
+        successScreen.style.display = 'none';
+        appContent.style.display = 'block';
+        loadGroups(); loadStudents(); populateGroupSelects(); switchTab('attendance');
+    }, 2000);
 }
 initializeListeners();
