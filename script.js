@@ -185,17 +185,62 @@ togglePasswordBtn.addEventListener('click', () => {
 });
 
 // OTP LOGIC
-sendOtpBtn.addEventListener('click', () => {
-    const contact = usernameInput.value;
-    if(!contact) { alert("Enter Email/Phone first"); return; }
+// --- REAL SUPABASE OTP LOGIC ---
+sendOtpBtn.addEventListener('click', async () => {
+    const email = usernameInput.value.trim();
+    if(!email) { alert("Please enter your Email first."); return; }
+    if(!email.includes('@')) { alert("Please enter a valid Email address for OTP."); return; }
     
-    // Simulate OTP
-    generatedOTP = Math.floor(100000 + Math.random() * 900000);
-    alert(`[SIMULATION] Your OTP code is: ${generatedOTP}`);
+    // Change button text to indicate working
+    sendOtpBtn.textContent = "SENDING...";
+    sendOtpBtn.disabled = true;
+
+    // 1. Send OTP via Supabase
+    const { error } = await supabaseClient.auth.signInWithOtp({
+        email: email
+    });
+
+    if (error) {
+        alert("Error sending OTP: " + error.message);
+        sendOtpBtn.textContent = "SEND OTP";
+        sendOtpBtn.disabled = false;
+    } else {
+        alert("OTP Sent! Check your email inbox (and spam).");
+        sendOtpBtn.style.display = 'none';
+        otpInputWrapper.style.display = 'block';
+        otpStatus.textContent = "Code sent to " + email;
+    }
+});
+
+verifyOtpBtn.addEventListener('click', async () => {
+    const email = usernameInput.value.trim();
+    const token = otpInput.value.trim();
     
-    sendOtpBtn.style.display = 'none';
-    otpInputWrapper.style.display = 'block';
-    otpStatus.textContent = "OTP Sent. Check your device.";
+    if(!token) { alert("Enter the 6-digit code."); return; }
+
+    verifyOtpBtn.textContent = "VERIFYING...";
+    
+    // 2. Verify OTP
+    const { data, error } = await supabaseClient.auth.verifyOtp({
+        email: email,
+        token: token,
+        type: 'email'
+    });
+
+    if (error) {
+        alert("Invalid Code: " + error.message);
+        verifyOtpBtn.textContent = "VERIFY CODE";
+    } else {
+        // Success! User is now technically "Logged In" via OTP
+        isVerified = true;
+        otpStatus.textContent = "VERIFIED ✓";
+        otpStatus.style.color = "var(--color-success)";
+        otpInputWrapper.style.display = 'none';
+        
+        // Hide password field requirements if you want, 
+        // but we will keep it so they can set a password for next time.
+        alert("Email Verified Successfully!");
+    }
 });
 
 verifyOtpBtn.addEventListener('click', () => {
@@ -974,33 +1019,39 @@ function initializeListeners() {
                 return;
             }
 
-            const { data, error } = await supabaseClient.auth.signUp({
-                email: email,
-                password: password,
-                options: {
+            if (isVerified) {
+                // CASE A: User verified Email via OTP -> They are ALREADY logged in.
+                // We just need to Update their profile with Name, Batch, Password.
+                
+                const { data, error } = await supabaseClient.auth.updateUser({
+                    password: password,
                     data: { full_name: name, year: year, batch: batch }
+                });
+
+                if (error) {
+                    alert("Profile Save Failed: " + error.message);
+                } else {
+                    alert("Registration Complete!");
+                    handleLoginSuccess(data.user);
                 }
-            });
 
-            if (error) {
-                alert("Registration Failed: " + error.message);
             } else {
-                alert("Registration Successful! Signing you in...");
-                if(data.user) handleLoginSuccess(data.user);
-            }
+                // CASE B: Standard Sign Up (No OTP used, or OTP failed)
+                // This acts as a fallback to standard Email/Pass signup
+                const { data, error } = await supabaseClient.auth.signUp({
+                    email: email,
+                    password: password,
+                    options: {
+                        data: { full_name: name, year: year, batch: batch }
+                    }
+                });
 
-        } else {
-            // --- LOGIN (SIGN IN) ---
-            const { data, error } = await supabaseClient.auth.signInWithPassword({
-                email: email,
-                password: password
-            });
-
-            if (error) {
-                loginError.textContent = "Login Failed: " + error.message;
-                loginError.style.display = 'block';
-            } else {
-                handleLoginSuccess(data.user);
+                if (error) {
+                    alert("Registration Failed: " + error.message);
+                } else {
+                    alert("Registration Successful! Signing you in...");
+                    if(data.user) handleLoginSuccess(data.user);
+                }
             }
         }
     });
