@@ -1069,45 +1069,83 @@ function initializeListeners() {
     toggleAuthBtn.addEventListener("click", toggleAuthMode);
     
     loginForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const email = usernameInput.value.trim();
-        const password = passwordInput.value.trim();
+    e.preventDefault();
+    const email = usernameInput.value.trim();
+    const password = passwordInput.value.trim();
 
-        if (!email || !password) {
-            loginError.textContent = "Please fill in email and password.";
-            loginError.style.display = 'block';
+    if (!email || !password) {
+        loginError.textContent = "Please fill in email and password.";
+        loginError.style.display = 'block';
+        return;
+    }
+
+    // 1. CHECK IF WE ARE REGISTERING
+    if (isRegistering) {
+        // --- REGISTER (SIGN UP) LOGIC ---
+        const name = regNameInput.value.trim();
+        const year = regYearSelect.value;
+        const batch = regBatchInput.value.trim();
+
+        if (!name || !batch) {
+            alert("Name and Batch are required.");
             return;
         }
 
-        if (isRegistering) {
-            // ... (Your existing registration logic is here) ...
-            // ... (Keep the existing code inside this if block) ...
-            
-            // ... CASE A and CASE B logic ...
-
-        } else {
-            // [FIX STARTS HERE] -> ADD THIS ELSE BLOCK
-            // --- STANDARD LOGIN ---
-            loginBtn.textContent = "VERIFYING...";
-            loginBtn.disabled = true;
-
-            const { data, error } = await supabaseClient.auth.signInWithPassword({
-                email: email,
-                password: password
+        if (isVerified) {
+            // CASE A: User verified Email via OTP (Update existing user)
+            const { data, error } = await supabaseClient.auth.updateUser({
+                password: password,
+                data: { full_name: name, year: year, batch: batch }
             });
 
             if (error) {
-                loginError.textContent = "Login Failed: " + error.message;
-                loginError.style.display = 'block';
-                loginBtn.textContent = "LOGIN";
-                loginBtn.disabled = false;
+                alert("Profile Save Failed: " + error.message);
             } else {
-                // Success!
+                alert("Registration Complete!");
                 handleLoginSuccess(data.user);
             }
-            // [FIX ENDS HERE]
+
+        } else {
+            // CASE B: Standard Sign Up (New user)
+            const { data, error } = await supabaseClient.auth.signUp({
+                email: email,
+                password: password,
+                options: {
+                    data: { full_name: name, year: year, batch: batch }
+                }
+            });
+
+            if (error) {
+                alert("Registration Failed: " + error.message);
+            } else {
+                alert("Registration Successful! Signing you in...");
+                if (data.user) handleLoginSuccess(data.user);
+            }
         }
-    });
+    
+    } else { 
+        // 2. [FIX IS HERE] -> THIS ELSE BLOCK MUST BE OUTSIDE THE "if (isRegistering)" BRACKETS
+        // --- STANDARD LOGIN ---
+        
+        loginBtn.textContent = "VERIFYING...";
+        loginBtn.disabled = true;
+
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+            email: email,
+            password: password
+        });
+
+        if (error) {
+            loginError.textContent = "Login Failed: " + error.message;
+            loginError.style.display = 'block';
+            loginBtn.textContent = "LOGIN";
+            loginBtn.disabled = false;
+        } else {
+            // Success!
+            handleLoginSuccess(data.user);
+        }
+    }
+});
 
     function loginSuccess() {
         loginScreen.style.display = 'none';
