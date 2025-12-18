@@ -1,7 +1,14 @@
+// --- SUPABASE CONFIGURATION ---
+const SUPABASE_URL = "https://qjpmsepigcjqkptfptnt.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqcG1zZXBpZ2NqcWtwdGZwdG50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwNjA1NTIsImV4cCI6MjA4MTYzNjU1Mn0.VsVa4ZwYDz9YTWiVjpf96LECjRbm0Jshs4AEys_eHRQ";
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// --- OLD CONFIG (KEEPING FOR NOW) ---
 const USERNAME = "CICRMEETIN";
 const PASSWORD = "CICRMEET25";
-const SECURITY_PIN = "1407"; // SECURITY KEY
+const SECURITY_PIN = "1407"; 
 let ALL_GROUPS = ["4th Year", "3rd Year", "2nd Year", "1st Year"];
+// ... rest of 
 const DEFAULT_STUDENTS = [
 	"4th Year: Archit Jain", "3rd Year: Yasharth", "3rd Year: Dhruvi Gupta", "3rd Year: Aryan Varshney", "2nd Year: Aradhaya", "2nd Year: Aman",
     "1st Year: Divyam Jain", "1st Year: Bhuwan Dhanwani", "1st Year: Kartik Virmani", "1st Year: Kshitika Barnwal", "1st Year: Kumar Shaurya", "1st Year: Vishal Tomar",
