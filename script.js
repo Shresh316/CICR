@@ -886,37 +886,51 @@ function updateSummary() {
 	presentPercentage.classList.toggle("poor", parseFloat(percentage) < 70);
 	absentListElement.textContent = absentNames.length > 0 ? absentNames.join(", ") : "None";
 }
-function saveData() {
-	const selectedGroups = getSelectedGroups();
-	if (Object.keys(attendanceState).length === 0 || selectedGroups.length === 0) return alert("Error: Select group and mark users.");
-	if (!attendanceDate.value) return alert("Error: Select date.");
-	if (attendanceTakerSelect.value === "") return alert("Error: Select recorder.");
+async function saveData() {
+    const selectedGroups = getSelectedGroups();
+    
+    // 1. VALIDATION
+    if (Object.keys(attendanceState).length === 0 || selectedGroups.length === 0) 
+        return alert("Error: Select group and mark users.");
+    if (!attendanceDate.value) return alert("Error: Select date.");
+    if (attendanceTakerSelect.value === "") return alert("Error: Select recorder.");
+    
     const unmarkedCount = Object.values(attendanceState).filter(s => s === "MARK").length;
-	if (unmarkedCount > 0 && !confirm(`Warning: ${unmarkedCount} users unmarked. Commit?`)) return;
-	
-  operateGate(async () => {
+    if (unmarkedCount > 0 && !confirm(`Warning: ${unmarkedCount} users unmarked. Commit?`)) return;
+
+    // 2. PREPARE DATA
+    const attendanceJson = Object.entries(attendanceState).map(([key, status]) => {
+        const [group, name] = key.split(": ");
+        return { group, name, status };
+    });
+
+    const date = attendanceDate.value;
+    const topic = getMeetingTopic();
+    // Extract just the name if it's "Role: Name"
+    const taker = attendanceTakerSelect.value.includes(": ") ? attendanceTakerSelect.value.split(": ")[1] : attendanceTakerSelect.value;
+    const summary = meetingSummaryInput.value.trim() || "No summary provided.";
+    const groupString = selectedGroups.join(", ");
+
+    // 3. SEND TO SUPABASE (Using 'group_filter')
+    operateGate(async () => {
         const { error } = await supabaseClient
-            .from('projects')
+            .from('attendance_logs')
             .insert({
-                title: name,
-                type: type,
-                members: members,
-                link_code: link,
-                date_start: start,
-                date_end: end || null,
-                purpose: purpose,
-                tech_stack: tech,
-                link_tinkercad: tinkercad
+                date: date,
+                topic: topic,
+                group_filter: groupString, // MATCHING YOUR DB COLUMN
+                taker_name: taker,
+                summary: summary,
+                attendance_data: attendanceJson
             });
 
         if (error) {
-            alert("Error saving project: " + error.message);
+            alert("Error saving log: " + error.message);
+            console.error(error);
         } else {
             showSuccessAnimation();
-            projectNameInput.value = ""; projectMembersInput.value = ""; projectLinkInput.value = ""; 
-            projectStartInput.value = ""; projectEndInput.value = ""; projectPurposeInput.value = "";
-            projectTechInput.value = ""; projectTinkercadInput.value = "";
-            renderProjects();
+            meetingSummaryInput.value = "";
+            renderHistory(); // Refresh the logs tab immediately
         }
     });
 }
