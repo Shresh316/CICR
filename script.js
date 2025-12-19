@@ -675,38 +675,71 @@ window.deleteEqLog = async function(id) {
 };
 
 // --- CHAT LOGIC ---
-function loadChat() {
-    const chat = JSON.parse(localStorage.getItem("cicrChat") || "[]");
-    chatDisplay.innerHTML = "";
-    if(chat.length === 0) {
-        chatDisplay.innerHTML = `<div class="chat-message msg-other"><span class="msg-meta">SYSTEM | NOW</span>Welcome to the Secure Channel. Start communicating.</div>`;
+async function loadChat() {
+    chatDisplay.innerHTML = '<div class="chat-message msg-other" style="text-align:center; opacity:0.6;">Loading secure channel...</div>';
+    
+    // Fetch last 50 messages
+    const { data: chat, error } = await supabaseClient
+        .from('chat_messages')
+        .select('*')
+        .order('created_at', { ascending: true }) // Oldest first for chat flow
+        .limit(50);
+
+    if (error) {
+        chatDisplay.innerHTML = `<div class="chat-message msg-other" style="color:red">Connection Failed: ${error.message}</div>`;
+        return;
     }
+
+    chatDisplay.innerHTML = "";
+    if (!chat || chat.length === 0) {
+        chatDisplay.innerHTML = `<div class="chat-message msg-other"><span class="msg-meta">SYSTEM</span>Welcome to the Secure Channel. Start communicating.</div>`;
+        return;
+    }
+
+    const currentUserName = currentUser ? currentUser.name : "ME";
+
     chat.forEach(msg => {
+        // Convert timestamp to local time string (e.g. "10:30 PM")
+        const dateObj = new Date(msg.created_at);
+        const timeStr = dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        
+        const isSelf = msg.sender_name === currentUserName;
         const div = document.createElement("div");
-        div.className = `chat-message ${msg.sender === (currentUser ? currentUser.name : 'ME') ? 'msg-self' : 'msg-other'}`;
-        div.innerHTML = `<span class="msg-meta">${msg.sender} | ${msg.time}</span>${msg.text}`;
+        div.className = `chat-message ${isSelf ? 'msg-self' : 'msg-other'}`;
+        div.innerHTML = `<span class="msg-meta">${msg.sender_name} | ${timeStr}</span>${msg.message_text}`;
         chatDisplay.appendChild(div);
     });
+    
+    scrollChat();
 }
-function postMessage() {
+async function postMessage() {
     const text = chatInput.value.trim();
     if(!text) return;
     
-    const chat = JSON.parse(localStorage.getItem("cicrChat") || "[]");
-    const senderName = currentUser ? currentUser.name : "ME";
+    // Disable input while sending
+    chatInput.disabled = true;
+    chatSendBtn.textContent = "...";
     
-    const msg = {
-        sender: senderName,
-        text: text,
-        time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
-    };
-    chat.push(msg);
-    if(chat.length > 50) chat.shift(); 
-    localStorage.setItem("cicrChat", JSON.stringify(chat));
+    const senderName = currentUser ? currentUser.name : "Unknown Agent";
     
-    chatInput.value = "";
-    loadChat();
-    scrollChat();
+    const { error } = await supabaseClient
+        .from('chat_messages')
+        .insert({
+            sender_name: senderName,
+            message_text: text
+            // created_at is automatic
+        });
+
+    // Re-enable input
+    chatInput.disabled = false;
+    chatSendBtn.textContent = "SEND";
+
+    if (error) {
+        alert("Transmission Failed: " + error.message);
+    } else {
+        chatInput.value = "";
+        loadChat(); // Refresh immediately to show the new message
+    }
 }
 function scrollChat() {
     chatDisplay.scrollTop = chatDisplay.scrollHeight;
