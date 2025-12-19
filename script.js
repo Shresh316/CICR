@@ -571,7 +571,7 @@ function populateEqMemberDropdown() {
     });
 }
 
-function saveEquipment() {
+async function saveEquipment() {
     const name = eqNameInput.value.trim();
     const member = eqMemberSelect.value;
     const group = eqGroupInput.value.trim();
@@ -583,72 +583,95 @@ function saveEquipment() {
         return;
     }
 
-    operateGate(() => {
-        const logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]");
-        const newLog = {
-            id: Date.now(),
-            name,
-            member: member.split(": ")[1],
-            group,
-            issue,
-            return: ret,
-            status: "ISSUED"
-        };
-        logs.unshift(newLog);
-        localStorage.setItem("cicrEquipment", JSON.stringify(logs));
-        
-        showSuccessAnimation();
-        eqNameInput.value = ""; eqGroupInput.value = "";
-        renderEquipmentLogs();
+    // Extract name if format is "Role: Name"
+    const memberName = member.includes(": ") ? member.split(": ")[1] : member;
+
+    operateGate(async () => {
+        const { error } = await supabaseClient
+            .from('equipment')
+            .insert({
+                item_name: name,
+                issued_to: memberName,
+                group_unit: group,
+                date_issue: issue,
+                date_return: ret || null, // Handle empty return date
+                status: "ISSUED"
+            });
+
+        if (error) {
+            alert("Error issuing equipment: " + error.message);
+        } else {
+            showSuccessAnimation();
+            eqNameInput.value = ""; 
+            eqGroupInput.value = "";
+            renderEquipmentLogs(); // Refresh list immediately
+        }
     });
 }
+async function renderEquipmentLogs() {
+    eqLogBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Loading cloud data...</td></tr>';
 
-function renderEquipmentLogs() {
-    const logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]");
+    const { data: logs, error } = await supabaseClient
+        .from('equipment')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        eqLogBody.innerHTML = `<tr><td colspan="5" style="color:red;">Error: ${error.message}</td></tr>`;
+        return;
+    }
+
     eqLogBody.innerHTML = "";
-
-    if (logs.length === 0) {
+    if (!logs || logs.length === 0) {
         eqLogBody.innerHTML = '<tr><td colspan="5" style="text-align:center; opacity:0.5;">No active equipment logs.</td></tr>';
         return;
     }
 
     logs.forEach(log => {
         const isSubmitted = log.status === "SUBMITTED";
+        const returnDateDisplay = log.date_return ? log.date_return : 'N/A';
+        
         eqLogBody.innerHTML += `
             <tr>
-                <td style="${isSubmitted ? 'opacity:0.5; text-decoration:line-through;' : 'color:var(--color-accent);'}">${log.name}</td>
-                <td>${log.member}<br><small style="color:#666">${log.group}</small></td>
-                <td style="font-size:11px;">Out: ${log.issue}<br>Due: ${log.return || 'N/A'}</td>
+                <td style="${isSubmitted ? 'opacity:0.5; text-decoration:line-through;' : 'color:var(--color-accent);'}">${log.item_name}</td>
+                <td>${log.issued_to}<br><small style="color:#666">${log.group_unit}</small></td>
+                <td style="font-size:11px;">Out: ${log.date_issue}<br>Due: ${returnDateDisplay}</td>
                 <td>
                     <span style="color: ${isSubmitted ? 'var(--color-success)' : 'var(--color-tinker)'}; font-weight:bold; font-size:10px;">
                         ${log.status}
                     </span>
                 </td>
                 <td>
-                    ${!isSubmitted ? `<button onclick="toggleEqStatus(${log.id})" class="status-button" style="padding:4px 8px !important; border:1px solid var(--color-success) !important; color:var(--color-success) !important;">Return</button>` : 
+                    ${!isSubmitted ? 
+                    `<button onclick="toggleEqStatus(${log.id})" class="status-button" style="padding:4px 8px !important; border:1px solid var(--color-success) !important; color:var(--color-success) !important;">Return</button>` : 
                     `<button onclick="deleteEqLog(${log.id})" class="status-button" style="padding:4px 8px !important; border:1px solid var(--color-danger) !important; color:var(--color-danger) !important;">Del</button>`}
                 </td>
             </tr>
         `;
     });
 }
+window.toggleEqStatus = async function(id) {
+    if(!confirm("Mark this item as RETURNED?")) return;
 
-window.toggleEqStatus = function(id) {
-    let logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]");
-    const log = logs.find(l => l.id === id);
-    if(log) {
-        log.status = "SUBMITTED";
-        localStorage.setItem("cicrEquipment", JSON.stringify(logs));
-        renderEquipmentLogs();
-    }
+    const { error } = await supabaseClient
+        .from('equipment')
+        .update({ status: 'SUBMITTED' })
+        .eq('id', id);
+
+    if (error) alert("Error updating status: " + error.message);
+    else renderEquipmentLogs();
 };
 
-window.deleteEqLog = function(id) {
-    if(!confirm("Delete this log permanently?")) return;
-    let logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]");
-    logs = logs.filter(l => l.id !== id);
-    localStorage.setItem("cicrEquipment", JSON.stringify(logs));
-    renderEquipmentLogs();
+window.deleteEqLog = async function(id) {
+    if(!confirm("Delete this log permanently from database?")) return;
+    
+    const { error } = await supabaseClient
+        .from('equipment')
+        .delete()
+        .eq('id', id);
+        
+    if (error) alert("Error deleting: " + error.message);
+    else renderEquipmentLogs();
 };
 
 // --- CHAT LOGIC ---
