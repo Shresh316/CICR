@@ -461,60 +461,79 @@ securityPinInput.addEventListener('keypress', (e) => {
 });
 
 // --- CICR SHELF (PROJECTS) FUNCTIONS ---
-function loadProjects() { return JSON.parse(localStorage.getItem("cicrProjects") || "[]"); }
-function saveProject() {
-    const name = projectNameInput.value.trim();
-    const type = projectTypeSelect.value;
-    const members = projectMembersInput.value.trim();
-    const link = projectLinkInput.value.trim();
-    const start = projectStartInput.value;
-    const end = projectEndInput.value;
-    const purpose = projectPurposeInput.value.trim();
-    const tech = projectTechInput.value.trim();
-    const tinkercad = projectTinkercadInput.value.trim();
 
-    if (!name || !members || !purpose) { alert("Error: Title, Member Name, and Purpose are required."); return; }
+// 1. SAVE PROJECT (Fixed to use Supabase)
+async function saveProject() {
+    // Get values directly
+    const pName = projectNameInput.value.trim();
+    const pType = projectTypeSelect.value;
+    const pMembers = projectMembersInput.value.trim();
+    const pLink = projectLinkInput.value.trim();
+    const pStart = projectStartInput.value;
+    const pEnd = projectEndInput.value;
+    const pPurpose = projectPurposeInput.value.trim();
+    const pTech = projectTechInput.value.trim();
+    const pTinkercad = projectTinkercadInput.value.trim();
 
-    operateGate(() => {
-        const newProject = { 
-            id: Date.now(), 
-            name, 
-            type, 
-            members, 
-            link, 
-            start, 
-            end,
-            purpose,
-            tech,
-            tinkercad
-        };
-        const projects = loadProjects();
-        projects.push(newProject);
-        localStorage.setItem("cicrProjects", JSON.stringify(projects));
-        
-        showSuccessAnimation();
-        
-        projectNameInput.value = ""; projectMembersInput.value = ""; projectLinkInput.value = ""; 
-        projectStartInput.value = ""; projectEndInput.value = ""; projectPurposeInput.value = "";
-        projectTechInput.value = ""; projectTinkercadInput.value = "";
-        renderProjects();
+    // Validation
+    if (!pName || !pMembers || !pPurpose) { 
+        alert("Error: Title, Member Name, and Purpose are required."); 
+        return; 
+    }
+
+    // Save to Cloud
+    operateGate(async () => {
+        const { error } = await supabaseClient
+            .from('projects')
+            .insert({
+                title: pName,
+                type: pType,
+                members: pMembers,
+                link_code: pLink,
+                date_start: pStart,
+                date_end: pEnd || null,
+                purpose: pPurpose,
+                tech_stack: pTech,
+                link_tinkercad: pTinkercad
+            });
+
+        if (error) {
+            alert("Error saving project: " + error.message);
+        } else {
+            showSuccessAnimation();
+            
+            // Clear Form
+            projectNameInput.value = ""; 
+            projectMembersInput.value = ""; 
+            projectLinkInput.value = ""; 
+            projectStartInput.value = ""; 
+            projectEndInput.value = ""; 
+            projectPurposeInput.value = "";
+            projectTechInput.value = ""; 
+            projectTinkercadInput.value = "";
+            
+            // Reload List
+            renderProjects();
+        }
     });
 }
+
+// 2. RENDER PROJECTS (Fetches from Supabase)
 async function renderProjects() {
-    liveProjectsList.innerHTML = "<p>Loading projects...</p>";
+    liveProjectsList.innerHTML = "<p>Loading projects from cloud...</p>";
 
     const { data: projects, error } = await supabaseClient
         .from('projects')
         .select('*')
         .order('created_at', { ascending: false });
 
-    if (error || !projects) {
-        liveProjectsList.innerHTML = '<p>Error loading projects.</p>';
+    if (error) {
+        liveProjectsList.innerHTML = `<p style="color:red">Error loading projects: ${error.message}</p>`;
         return;
     }
 
     liveProjectsList.innerHTML = "";
-    if (projects.length === 0) {
+    if (!projects || projects.length === 0) {
         liveProjectsList.innerHTML = '<p style="opacity:0.6; font-size:13px;">Shelf is empty. Add a project above.</p>';
         return;
     }
@@ -528,13 +547,16 @@ async function renderProjects() {
             techTags = p.tech_stack.split(',').map(t => `<span class="project-tech-tag">${t.trim()}</span>`).join('');
         }
 
+        // Handle date display safely
+        const timeline = `${p.date_start || 'N/A'} ${p.date_end ? 'to ' + p.date_end : '(Ongoing)'}`;
+
         const html = `
         <div class="project-card">
             <h4>${p.title} <span style="font-size:10px; color:${p.type === 'live' ? 'var(--color-success)' : '#888'}; border:1px solid currentColor; padding:2px 5px; border-radius:2px; vertical-align:middle;">${p.type === 'live' ? 'LIVE' : 'ARCHIVED'}</span></h4>
             <div class="project-info"><strong>Lead/Member:</strong> ${p.members}</div>
             <div class="project-info" style="font-style:italic; color:#aaa; margin-bottom:10px;">"${p.purpose}"</div>
             <div class="project-info"><strong>Tech Stack:</strong><br>${techTags || 'Not Specified'}</div>
-            <div class="project-info" style="margin-top:10px;"><strong>Timeline:</strong> ${p.date_start} ${p.date_end ? 'to ' + p.date_end : '(Ongoing)'}</div>
+            <div class="project-info" style="margin-top:10px;"><strong>Timeline:</strong> ${timeline}</div>
             <div class="project-actions">
                 ${p.link_code ? `<a href="${p.link_code}" target="_blank" class="project-btn-link">🔗 Code / Github</a>` : ''}
                 ${p.link_tinkercad ? `<a href="${p.link_tinkercad}" target="_blank" class="project-btn-link btn-tinkercad">⚡ View on Tinkercad</a>` : ''}
@@ -546,18 +568,20 @@ async function renderProjects() {
     });
 }
 
+// 3. DELETE PROJECT (Fixed to remove from Supabase)
 window.deleteProject = async function(id) {
-    if(!confirm("Delete this project from the cloud?")) return;
-    const { error } = await supabaseClient.from('projects').delete().eq('id', id);
-    if(error) alert("Error deleting: " + error.message);
-    else renderProjects();
-};
-window.deleteProject = function(id) {
-    if(!confirm("Delete this project from the shelf?")) return;
-    let projects = loadProjects();
-    projects = projects.filter(p => p.id !== id);
-    localStorage.setItem("cicrProjects", JSON.stringify(projects));
-    renderProjects();
+    if(!confirm("Delete this project from the cloud database?")) return;
+    
+    const { error } = await supabaseClient
+        .from('projects')
+        .delete()
+        .eq('id', id);
+        
+    if(error) {
+        alert("Error deleting: " + error.message);
+    } else {
+        renderProjects();
+    }
 };
 
 // --- EQUIPMENT TRACKER FUNCTIONS ---
@@ -1030,26 +1054,53 @@ function removeSelectedRecords() {
     const ids = Array.from(checkboxes).map(c => parseInt(c.getAttribute('data-id')));
     history = history.filter(r => !ids.includes(r.id)); localStorage.setItem("attendanceHistory", JSON.stringify(history)); renderHistory();
 }
+async function exportToCSV() {
+    exportExcelBtn.textContent = "Generating...";
+    
+    // 1. Fetch ALL logs from Supabase
+    const { data: history, error } = await supabaseClient
+        .from('attendance_logs')
+        .select('*')
+        .order('date', { ascending: false });
 
-function exportToCSV() {
-    const history = JSON.parse(localStorage.getItem("attendanceHistory") || "[]");
-    if (history.length === 0) { alert("No logs to export."); return; }
+    if (error || !history || history.length === 0) {
+        alert("No cloud data found to export.");
+        exportExcelBtn.textContent = "Export CSV (Excel)";
+        return;
+    }
 
+    // 2. Build CSV Headers
     let csvContent = "data:text/csv;charset=utf-8,";
     csvContent += "Date,Topic,Group,Recorder,Summary,Student Name,Student Group,Status\n";
 
+    // 3. Loop through cloud data
     history.forEach(record => {
         const date = record.date;
-        const topic = record.topic.replace(/,/g, " "); 
-        const group = record.group.replace(/,/g, " ");
-        const recorder = record.taker.replace(/,/g, " ");
-        const summary = record.summary.replace(/,/g, " ");
+        const topic = (record.topic || "").replace(/,/g, " "); 
+        const group = (record.group_filter || "").replace(/,/g, " ");
+        const recorder = (record.taker_name || "").replace(/,/g, " ");
+        const summary = (record.summary || "").replace(/,/g, " ");
 
-        record.attendance.forEach(att => {
+        // Parse the JSON attendance data
+        const attData = record.attendance_data || [];
+        
+        attData.forEach(att => {
             const row = `${date},${topic},${group},${recorder},${summary},${att.name},${att.group},${att.status}`;
             csvContent += row + "\n";
         });
     });
+
+    // 4. Download File
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `CICR_Attendance_Cloud_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    exportExcelBtn.textContent = "Export CSV (Excel)";
+}
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
@@ -1089,15 +1140,46 @@ function handleScheduleMeeting() {
     window.location.href = mailtoLink;
 }
 
-function calculatePersonalReport() {
-    const history = JSON.parse(localStorage.getItem("attendanceHistory") || "[]");
-    const reportData = {};
-    h4_students.forEach(m => reportData[m] = { total: 0, attended: 0, group: m.split(": ")[0], name: m.split(": ")[1] });
-    history.forEach(r => r.attendance.forEach(a => { const key = `${a.group}: ${a.name}`; if (reportData[key] && a.status !== "MARK") { reportData[key].total++; if (a.status === "PRESENT") reportData[key].attended++; } }));
+async function calculatePersonalReport() {
+    personalReportBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Analyzing Cloud Data...</td></tr>';
     
+    // 1. Fetch all logs
+    const { data: history, error } = await supabaseClient
+        .from('attendance_logs')
+        .select('attendance_data');
+
+    if (error || !history) {
+        personalReportBody.innerHTML = '<tr><td colspan="3" style="color:red;">Analysis Failed.</td></tr>';
+        return;
+    }
+
+    // 2. Initialize counters for ALL members
+    const reportData = {};
+    h4_students.forEach(m => {
+        const [grp, name] = m.split(": ");
+        reportData[m] = { total: 0, attended: 0, group: grp, name: name };
+    });
+
+    // 3. Process Cloud Data
+    history.forEach(r => {
+        const data = r.attendance_data || [];
+        data.forEach(a => {
+            // Reconstruct key "Group: Name"
+            const key = `${a.group}: ${a.name}`;
+            
+            // Only count if user exists in current list and wasn't "UNMARKED"
+            if (reportData[key] && a.status !== "MARK" && a.status !== "UNMARKED") { 
+                reportData[key].total++; 
+                if (a.status === "PRESENT") reportData[key].attended++; 
+            }
+        });
+    });
+    
+    // 4. Render Table
     personalReportBody.innerHTML = "";
     Object.keys(reportData).sort().forEach(key => {
         const d = reportData[key];
+        // Avoid division by zero
         const pct = d.total > 0 ? ((d.attended / d.total) * 100).toFixed(1) : 0;
         const pctDisplay = d.total > 0 ? pct + "%" : "N/A";
         
@@ -1291,5 +1373,27 @@ function handleLoginSuccess(user) {
         appContent.style.display = 'block';
         loadGroups(); loadStudents(); populateGroupSelects(); switchTab('attendance');
     }, 2000);
+}
+async function addPermanentGroup(groupName) {
+    if (!groupName) return false;
+    
+    // Add to local list
+    if (!ALL_GROUPS.includes(groupName)) {
+        ALL_GROUPS.push(groupName);
+        
+        // Save to Supabase
+        const { error } = await supabaseClient
+            .from('app_settings')
+            .upsert({ category: 'groups_list', data_value: ALL_GROUPS }, { onConflict: 'category' });
+
+        if (error) {
+            alert("Error saving group: " + error.message);
+            return false;
+        }
+
+        populateGroupSelects();
+        return true;
+    }
+    return false;
 }
 initializeListeners();
