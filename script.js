@@ -568,7 +568,7 @@ async function renderProjects() {
     });
 }
 
-// 3. DELETE PROJECT (Fixed to remove from Supabase)
+// 3. DELETE PROJECT (Fixed to remove from ss
 window.deleteProject = async function(id) {
     if(!confirm("Delete this project from the cloud database?")) return;
     
