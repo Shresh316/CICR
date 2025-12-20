@@ -279,15 +279,18 @@ function loadUserProfile() {
     profileBatchInput.value = currentUser.batch || "";
 }
 
+// Add a global variable to store the selected file
+let selectedAvatarFile = null;
+
 function handleProfilePicUpload(event) {
     const file = event.target.files[0];
     if (file) {
+        selectedAvatarFile = file; // Store the actual file for uploading later
+
+        // Show preview immediately (Visual only)
         const reader = new FileReader();
         reader.onload = function(e) {
-            const base64Image = e.target.result;
-            // Update Preview
-            profilePreview.style.backgroundImage = `url(${base64Image})`;
-            currentUser.tempAvatar = base64Image; 
+            profilePreview.style.backgroundImage = `url(${e.target.result})`;
         };
         reader.readAsDataURL(file);
     }
@@ -310,26 +313,63 @@ function operateGate(callback) {
     }, 1200);
 }
 
-function updateProfile() {
-    operateGate(() => {
+async function updateProfile() {
+    operateGate(async () => {
         if (!currentUser) return;
-        const users = getStoredUsers();
         
-        currentUser.name = profileNameInput.value.trim();
-        currentUser.year = profileYearSelect.value;
-        currentUser.batch = profileBatchInput.value.trim();
-        
-        if (currentUser.tempAvatar) {
-            currentUser.avatar = currentUser.tempAvatar;
-            delete currentUser.tempAvatar;
+        const newName = profileNameInput.value.trim();
+        const newYear = profileYearSelect.value;
+        const newBatch = profileBatchInput.value.trim();
+        let finalAvatarUrl = currentUser.avatar || "";
+
+        // 1. IF NEW PHOTO SELECTED: Upload to Supabase Storage
+        if (selectedAvatarFile) {
+            const fileName = `${currentUser.id}_${Date.now()}.png`; // Unique name
+            
+            // Upload to 'avatars' bucket
+            const { data, error: uploadError } = await supabaseClient
+                .storage
+                .from('avatars')
+                .upload(fileName, selectedAvatarFile, {
+                    cacheControl: '3600',
+                    upsert: true
+                });
+
+            if (uploadError) {
+                alert("Photo Upload Failed: " + uploadError.message);
+                return; // Stop if upload fails
+            }
+
+            // Get the Public URL
+            const { data: urlData } = supabaseClient
+                .storage
+                .from('avatars')
+                .getPublicUrl(fileName);
+                
+            finalAvatarUrl = urlData.publicUrl;
         }
-        
-        if (users[currentUser.id]) {
-            users[currentUser.id].name = currentUser.name;
-            users[currentUser.id].year = currentUser.year;
-            users[currentUser.id].batch = currentUser.batch;
-            if(currentUser.avatar) users[currentUser.id].avatar = currentUser.avatar;
-            saveStoredUsers(users);
+
+        // 2. SAVE TEXT DATA TO DATABASE (Profiles Table)
+        const { error } = await supabaseClient
+            .from('profiles')
+            .upsert({ 
+                id: currentUser.id,
+                full_name: newName,
+                year: newYear,
+                batch: newBatch,
+                avatar_url: finalAvatarUrl 
+            }, { onConflict: 'id' });
+
+        if (error) {
+            alert("Profile Update Failed: " + error.message);
+        } else {
+            // Success! Update local state
+            currentUser.name = newName;
+            currentUser.year = newYear;
+            currentUser.batch = newBatch;
+            currentUser.avatar = finalAvatarUrl;
+            selectedAvatarFile = null; // Clear selected file
+            
             showSuccessAnimation();
             loadUserProfile(); 
         }
@@ -568,7 +608,7 @@ async function renderProjects() {
     });
 }
 
-// 3. DELETE PROJECT (Fixed to remove from ss
+// 3. DELETE PROJECT (Fixed to remove from Supabase)
 window.deleteProject = async function(id) {
     if(!confirm("Delete this project from the cloud database?")) return;
     
