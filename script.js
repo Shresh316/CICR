@@ -273,7 +273,7 @@ function loadUserProfile() {
     userAvatarDisplay.style.display = 'flex';
 
     // Populate Account Tab
-    profileIdInput.value = currentUser.id;
+    profileIdInput.value = currentUser.email; // ✅ Display the email, not the UUID
     profileNameInput.value = currentUser.name;
     profileYearSelect.value = currentUser.year || "1st Year";
     profileBatchInput.value = currentUser.batch || "";
@@ -1387,13 +1387,14 @@ function handleLoginSuccess(user) {
     if(!user) return;
     
     // Map Supabase User to your App's format
-    currentUser = {
-        id: user.email,
-        name: user.user_metadata.full_name || "Member",
-        year: user.user_metadata.year || "N/A",
-        batch: user.user_metadata.batch || "N/A",
-        avatar: null 
-    };
+   currentUser = {
+    id: user.id,          // ✅ FIX: Use the UUID provided by Supabase
+    email: user.email,    // ✅ ADD: Store email separately for display
+    name: user.user_metadata.full_name || "Member",
+    year: user.user_metadata.year || "N/A",
+    batch: user.user_metadata.batch || "N/A",
+    avatar: null 
+};
 
     loginScreen.style.display = 'none';
     const successScreen = document.getElementById('success-screen');
