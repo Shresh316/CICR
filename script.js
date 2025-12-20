@@ -1142,14 +1142,7 @@ async function exportToCSV() {
     exportExcelBtn.textContent = "Export CSV (Excel)";
 }
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `CICR_Attendance_Report_${new Date().toISOString().slice(0,10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
+    
 
 function handleScheduleMeeting() {
     const initiator = scheduleInitiatorSelect.value;
