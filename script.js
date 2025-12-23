@@ -7,21 +7,14 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const USERNAME = "CICRMEETIN";
 const PASSWORD = "CICRMEET25";
 const SECURITY_PIN = "1407"; 
-let ALL_GROUPS = ["4th Year", "3rd Year", "2nd Year", "1st Year"];
+let allMembers = []; // Stores objects from DB: {id, full_name, year, batch, unit}
+// ALL_GROUPS is now dynamic, removed hardcoded arrays.
+let ALL_GROUPS = [];
 // ... rest of 
-const DEFAULT_STUDENTS = [
-	"4th Year: Archit Jain", "3rd Year: Yasharth", "3rd Year: Dhruvi Gupta", "3rd Year: Aryan Varshney", "2nd Year: Aradhaya", "2nd Year: Aman",
-    "1st Year: Divyam Jain", "1st Year: Bhuwan Dhanwani", "1st Year: Kartik Virmani", "1st Year: Kshitika Barnwal", "1st Year: Kumar Shaurya", "1st Year: Vishal Tomar",
-    "1st Year: ABHINAV KUMAR SINHA", "1st Year: Yashna Mehta", "1st Year: Agamjot Singh", "1st Year: Labhansh Vashisht", "1st Year: Mohd Nauman Ali", "1st Year: Palash Mittal",
-    "1st Year: Priyanshi Saini", "1st Year: Sanjana Kumari", "1st Year: Vardaan Saxena", "1st Year: Pulkit Sukhija", "1st Year: Sanskar Singhal", "1st Year: Paarth Sachdeva",
-    "1st Year: Abhisheak Dutt Chandra", "1st Year: Arohan Arora", "1st Year: Rohan Verma", "1st Year: Akshita Gupta", "1st Year: Sarthak Chaurasia", "1st Year: Raghav Seth",
-    "1st Year: Istuti Arora", "1st Year: Neeshal", "1st Year: Pakhi Srivastava", "1st Year: Priyanka suman", "1st Year: Shreya Bhatt", "1st Year: Tushar Goyal",
-    "1st Year: Parivisha Midha", "1st Year: Parth Mediratta", "1st Year: Tanisha Mehndiratta", "1st Year: Kushagra garg", "1st Year: Navya Chawla", "1st Year: Akansha Nagar",
-    "1st Year: Alok Sinha", "1st Year: Gourav Mandal"
-];
-let h4_students = [];
-let attendanceState = {};
-
+// --- NEW GLOBAL VARIABLES ---
+let GLOBAL_PIN = "1407"; // Default fallback
+let currentSyncGroup = null; // Stores active sync data
+let selectedSyncMembers = []; // Stores members selected for sync
 // DOM ELEMENTS
 const splashScreen = document.getElementById("splash-screen");
 const attendanceList = document.getElementById("attendance-list");
@@ -811,23 +804,6 @@ function scrollChat() {
 
 // --- DATA FUNCTIONS ---
 // --- NEW DATA LOADING FUNCTIONS ---
-async function loadGroups() {
-    // Try to fetch from Supabase
-    const { data, error } = await supabaseClient
-        .from('app_settings')
-        .select('data_value')
-        .eq('category', 'groups_list')
-        .single();
-    
-    if (data && data.data_value) {
-        ALL_GROUPS = data.data_value;
-    } else {
-        // If not found (first run), save default to DB
-        ALL_GROUPS = ["4th Year", "3rd Year", "2nd Year", "1st Year"];
-        saveGroups();
-    }
-    populateGroupSelects();
-}
 
 async function saveGroups() {
     // Save to Supabase
@@ -840,24 +816,47 @@ async function saveGroups() {
     renderStudents();
 }
 
-async function loadStudents() {
+aasync function loadGroups() {
+    // Fetch unique groups/years from the 'groups' table
     const { data, error } = await supabaseClient
-        .from('app_settings')
-        .select('data_value')
-        .eq('category', 'members_list')
-        .single();
+        .from('groups')
+        .select('group_name')
+        .order('group_name', { ascending: true });
 
-	if (data && data.data_value) {
-        h4_students = data.data_value;
-    } else { 
-        h4_students = DEFAULT_STUDENTS; 
-        saveStudents(); 
+    if (data) {
+        ALL_GROUPS = data.map(g => g.group_name);
+        populateGroupSelects(); // Updates the UI dropdowns
+    } else {
+        console.error("Error loading groups:", error);
     }
-    // Update all dropdowns that depend on students
-    populateAttendanceTakerDropdown();
-    populateRemoveMemberDropdown();
-    populateSchedulingDropdowns();
-    populateEqMemberDropdown();
+}
+
+async function loadStudents() {
+    // Fetch the clean member list from DB
+    const { data, error } = await supabaseClient
+        .from('members')
+        .select('*')
+        .order('full_name', { ascending: true });
+
+    if (error) {
+        alert("CRITICAL: Failed to load member roster from database.");
+        console.error(error);
+        return;
+    }
+
+    if (data) {
+        allMembers = data;
+        refreshAllDropdowns(); // Updates ALL dropdowns at once
+    }
+}
+
+function refreshAllDropdowns() {
+    populateAttendanceTakerDropdown(); 
+    populateRemoveMemberDropdown(); 
+    populateSchedulingDropdowns(); 
+    populateEqMemberDropdown(); 
+    populateSyncMemberDropdown();
+    renderStudents(); // Refresh the main list if filters are active
 }
 
 async function saveStudents() { 
@@ -871,6 +870,90 @@ async function saveStudents() {
     populateRemoveMemberDropdown(); 
     populateSchedulingDropdowns(); 
     populateEqMemberDropdown(); 
+}
+// --- 2. DROPDOWN HELPERS ---
+
+// Helper to create "Name (Year)" format
+function createMemberOption(member) {
+    const option = document.createElement("option");
+    option.value = member.full_name; // The value sent to DB is still just the Name
+    option.textContent = `${member.full_name} (${member.year})`; // UI shows Year
+    return option;
+}
+
+function populateAttendanceTakerDropdown() {
+    if (!attendanceTakerSelect) return;
+    attendanceTakerSelect.innerHTML = '<option value="" disabled selected>-- Select Member --</option>';
+    allMembers.forEach(m => attendanceTakerSelect.appendChild(createMemberOption(m)));
+}
+
+function populateRemoveMemberDropdown() {
+    if (!removeMemberSelect) return;
+    removeMemberSelect.innerHTML = '<option value="" disabled selected>-- Select User to Remove --</option>';
+    allMembers.forEach(m => removeMemberSelect.appendChild(createMemberOption(m)));
+}
+
+function populateSchedulingDropdowns() {
+    if (!scheduleInitiatorSelect || !scheduleRecipientSelect) return;
+    scheduleInitiatorSelect.innerHTML = '<option value="" disabled selected>-- Select Sender --</option>';
+    scheduleRecipientSelect.innerHTML = '<option value="" disabled selected>-- Select Recipient --</option>';
+    
+    allMembers.forEach(m => {
+        scheduleInitiatorSelect.appendChild(createMemberOption(m));
+        // Clone for recipient dropdown
+        const recipientOpt = createMemberOption(m);
+        scheduleRecipientSelect.appendChild(recipientOpt);
+    });
+}
+
+function populateEqMemberDropdown() {
+    if (!eqMemberSelect) return;
+    eqMemberSelect.innerHTML = '<option value="" disabled selected>-- Select Member --</option>';
+    allMembers.forEach(m => eqMemberSelect.appendChild(createMemberOption(m)));
+}
+
+function populateSyncMemberDropdown() {
+    const select = document.getElementById('sync-member-select');
+    if (!select) return;
+    select.innerHTML = '<option value="" disabled selected>-- Select Member --</option>';
+    allMembers.forEach(m => select.appendChild(createMemberOption(m)));
+}
+
+function populateGroupSelects() {
+    if (!yearSelect) return;
+    
+    // 1. Attendance Filter (Multiple Select)
+    // Save currently selected values before refreshing
+    const currentSelection = Array.from(yearSelect.selectedOptions).map(o => o.value);
+    
+    yearSelect.innerHTML = "";
+    ALL_GROUPS.forEach(group => {
+        const option = document.createElement("option");
+        option.value = group;
+        option.textContent = group;
+        if (currentSelection.includes(group)) option.selected = true;
+        yearSelect.appendChild(option);
+    });
+
+    // Default to 1st Year if nothing selected
+    if(yearSelect.selectedOptions.length === 0 && yearSelect.options.length > 0) {
+        yearSelect.options[0].selected = true;
+    }
+
+    // 2. Add New Member Group Select
+    if (!newMemberGroupSelect) return;
+    newMemberGroupSelect.innerHTML = '';
+    ALL_GROUPS.forEach(group => {
+        const option = document.createElement('option');
+        option.value = group;
+        option.textContent = group;
+        newMemberGroupSelect.appendChild(option);
+    });
+    // Add "Custom" option at the end
+    const cust = document.createElement('option');
+    cust.value = "Custom";
+    cust.textContent = "Custom Unit...";
+    newMemberGroupSelect.appendChild(cust);
 }
 // --- UI FUNCTIONS ---
 function updateClock() {
@@ -901,12 +984,17 @@ function populateGroupSelects() {
     else newMemberGroupSelect.value = ALL_GROUPS[0] || "Custom";
 }
 function populateAttendanceTakerDropdown() {
-	attendanceTakerSelect.innerHTML = '<option value="" disabled selected>-- Select Member --</option>';
-	h4_students.forEach(student => { 
-        const option = document.createElement("option"); 
-        option.value = student; 
-        option.textContent = student.includes(": ") ? student.split(": ")[1] : student; 
-        attendanceTakerSelect.appendChild(option); 
+    attendanceTakerSelect.innerHTML = '<option value="" disabled selected>-- Select Member --</option>';
+    
+    // Sort by name for easier finding
+    const sortedMembers = [...allMembers].sort((a, b) => a.full_name.localeCompare(b.full_name));
+
+    sortedMembers.forEach(member => {
+        const option = document.createElement("option");
+        // We store the ID or pure Name as value, no more prefixing
+        option.value = member.full_name; 
+        option.textContent = `${member.full_name} (${member.year})`; // Display Name (Year)
+        attendanceTakerSelect.appendChild(option);
     });
 }
 function populateRemoveMemberDropdown() {
@@ -953,50 +1041,136 @@ function removeMember() {
 }
 function getSelectedGroups() { return Array.from(yearSelect.selectedOptions).map(o => o.value); }
 
+// --- 3. CORE LOGIC ---
+
+// Renders the Attendance List based on "Year" selection
 function renderStudents() {
-	attendanceList.innerHTML = ""; attendanceState = {};
-	const selectedGroups = getSelectedGroups();
-	const filteredStudents = h4_students.filter(student => selectedGroups.includes(student.split(": ")[0]));
-	if (filteredStudents.length === 0) {
-        attendanceList.innerHTML = selectedGroups.length === 0 ? `<li style="padding: 15px; opacity: 0.7; color: #fff;">Select at least one Group/Unit to load members.</li>` : `<li style="padding: 15px; color: var(--color-danger);">No users found matching selected units.</li>`;
-		updateSummary(); return;
-	}
-	filteredStudents.sort((a, b) => a.localeCompare(b));
-	filteredStudents.forEach((studentData, index) => {
-		const [role, name] = studentData.split(": ");
-		const studentKey = studentData;
-		attendanceState[studentKey] = "MARK";
-		const listItem = document.createElement("li"); listItem.className = "student-item unmarked"; listItem.id = studentKey.replace(/[^a-zA-Z0-9]/g, "_");
-		
-        listItem.innerHTML = `
+    const list = document.getElementById('attendance-list');
+    list.innerHTML = "";
+    attendanceState = {}; // Reset local attendance state
+
+    // Get selected filters (e.g., ["1st Year", "2nd Year"])
+    const selectedGroups = Array.from(yearSelect.selectedOptions).map(o => o.value);
+
+    if (selectedGroups.length === 0) {
+        list.innerHTML = `<li style="padding: 15px; opacity: 0.7;">Select a Group/Year to load members.</li>`;
+        updateSummary();
+        return;
+    }
+
+    // FILTER: Check if member.year matches selected groups
+    const filteredMembers = allMembers.filter(m => selectedGroups.includes(m.year));
+
+    if (filteredMembers.length === 0) {
+        list.innerHTML = `<li style="padding: 15px; color: var(--color-danger);">No members found in selected groups.</li>`;
+        updateSummary();
+        return;
+    }
+
+    filteredMembers.forEach(member => {
+        // Create unique key for logic: "Year: Name" (Kept for compatibility with your existing save logic)
+        const studentKey = `${member.year}: ${member.full_name}`;
+        attendanceState[studentKey] = "MARK"; // Default status
+
+        const li = document.createElement("li");
+        li.className = "student-item unmarked";
+        li.id = "student_" + member.id; // Unique ID
+
+        li.innerHTML = `
             <div class="student-info">
-                <div class="student-name">${name}</div>
-                <div class="student-id">${role}</div>
+                <div class="student-name">${member.full_name}</div>
+                <div class="student-id">${member.year} ${member.batch ? '| ' + member.batch : ''}</div>
             </div>
             <div class="status-controls">
-                <button class="status-button btn-present" data-key="${studentKey}" style="opacity: 0.4;">Present</button>
-                <button class="status-button btn-absent" data-key="${studentKey}" style="opacity: 0.4;">Absent</button>
+                <button class="status-button btn-present" data-key="${studentKey}">Present</button>
+                <button class="status-button btn-absent" data-key="${studentKey}">Absent</button>
                 <button class="status-button btn-unmarked" data-key="${studentKey}" style="opacity: 1.0;">Unmarked</button>
             </div>
         `;
-		attendanceList.appendChild(listItem);
-	});
-	attendanceList.querySelectorAll(".status-button").forEach(button => {
-		button.addEventListener("click", e => {
-			const key = e.target.getAttribute("data-key");
-			const status = e.target.textContent.toUpperCase();
-			attendanceState[key] = (status === "UNMARKED") ? "MARK" : status;
-			const listItem = document.getElementById(key.replace(/[^a-zA-Z0-9]/g, "_"));
-			const controls = listItem.querySelector(".status-controls");
-			controls.querySelectorAll(".status-button").forEach(btn => btn.style.opacity = '0.4');
-			listItem.classList.remove("present", "absent", "unmarked");
-			if (status === "PRESENT") listItem.classList.add("present"); else if (status === "ABSENT") listItem.classList.add("absent"); else listItem.classList.add("unmarked");
-			e.target.style.opacity = '1.0'; updateSummary();
-		});
-	});
-	updateSummary();
+        list.appendChild(li);
+    });
+
+    // Re-attach Event Listeners for Buttons
+    list.querySelectorAll(".status-button").forEach(btn => {
+        btn.addEventListener("click", handleStatusClick);
+    });
+    updateSummary();
 }
 
+function handleStatusClick(e) {
+    const key = e.target.getAttribute("data-key");
+    const status = e.target.textContent.toUpperCase();
+    
+    // Update State
+    attendanceState[key] = (status === "UNMARKED") ? "MARK" : status;
+
+    // Visual Updates
+    const listItem = e.target.closest('li');
+    listItem.classList.remove("present", "absent", "unmarked");
+    
+    // Reset all buttons opacity
+    listItem.querySelectorAll(".status-button").forEach(b => b.style.opacity = '0.4');
+    
+    // Set active button
+    if (status === "PRESENT") listItem.classList.add("present");
+    else if (status === "ABSENT") listItem.classList.add("absent");
+    else listItem.classList.add("unmarked");
+    
+    e.target.style.opacity = '1.0';
+    updateSummary();
+}
+
+// Updated Add Member (Admin)
+window.addMember = async function() {
+    const name = document.getElementById('new-member-name').value.trim();
+    let group = document.getElementById('new-member-group').value; // This is the Year/Unit
+    const batch = document.getElementById('new-member-batch').value.trim();
+    const email = document.getElementById('new-member-email').value.trim();
+
+    if(group === "Custom") group = document.getElementById('custom-group-input').value.trim();
+
+    if(!name || !group) return alert("Name and Group/Year are required.");
+
+    // Check Duplicate in Local List first
+    if(allMembers.some(m => m.full_name.toLowerCase() === name.toLowerCase() && m.year === group)) {
+        return alert("User already exists in this group.");
+    }
+
+    // 1. Insert into DB
+    const { data, error } = await supabaseClient
+        .from('members')
+        .insert([{ full_name: name, year: group, batch: batch }])
+        .select();
+
+    if(error) {
+        alert("Database Error: " + error.message);
+    } else {
+        alert(`Success: ${name} added to ${group}.`);
+        // Refresh local data
+        loadStudents(); 
+        // Clear Inputs
+        document.getElementById('new-member-name').value = "";
+    }
+};
+
+// Updated Remove Member (Admin)
+window.removeMember = async function() {
+    const nameToRemove = removeMemberSelect.value; // This is just the name "John Doe"
+    if(!nameToRemove) return alert("Select a user.");
+
+    if(!confirm(`Delete "${nameToRemove}" from the database?`)) return;
+
+    const { error } = await supabaseClient
+        .from('members')
+        .delete()
+        .eq('full_name', nameToRemove);
+
+    if(error) alert("Error: " + error.message);
+    else {
+        alert("User deleted.");
+        loadStudents();
+    }
+};
 function updateSummary() {
 	let presentCount = 0, absentCount = 0, absentNames = [];
 	for (const key in attendanceState) { if (attendanceState[key] === "PRESENT") presentCount++; else if (attendanceState[key] === "ABSENT") { absentCount++; absentNames.push(key.split(": ")[1]); } }
@@ -1094,54 +1268,78 @@ function removeSelectedRecords() {
     const ids = Array.from(checkboxes).map(c => parseInt(c.getAttribute('data-id')));
     history = history.filter(r => !ids.includes(r.id)); localStorage.setItem("attendanceHistory", JSON.stringify(history)); renderHistory();
 }
+// --- FIXED CSV EXPORT LOGIC ---
 async function exportToCSV() {
-    exportExcelBtn.textContent = "Generating...";
+    const btn = document.getElementById('export-excel-btn');
+    btn.textContent = "Processing...";
+
+    // 1. Check for selected checkboxes
+    const checkboxes = document.querySelectorAll('.history-checkbox:checked');
+    const selectedIds = Array.from(checkboxes).map(c => parseInt(c.getAttribute('data-id')));
     
-    // 1. Fetch ALL logs from Supabase
+    // 2. Fetch Data
     const { data: history, error } = await supabaseClient
         .from('attendance_logs')
         .select('*')
         .order('date', { ascending: false });
 
-    if (error || !history || history.length === 0) {
-        alert("No cloud data found to export.");
-        exportExcelBtn.textContent = "Export CSV (Excel)";
+    if (error || !history) {
+        alert("Export Error: " + error.message);
+        btn.textContent = "Export CSV";
         return;
     }
 
-    // 2. Build CSV Headers
-    let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Date,Topic,Group,Recorder,Summary,Student Name,Student Group,Status\n";
+    // 3. Filter Data
+    // If checkboxes selected, only filter those. Else export ALL.
+    const recordsToExport = selectedIds.length > 0 
+        ? history.filter(r => selectedIds.includes(r.id)) 
+        : history;
 
-    // 3. Loop through cloud data
-    history.forEach(record => {
-        const date = record.date;
-        const topic = (record.topic || "").replace(/,/g, " "); 
-        const group = (record.group_filter || "").replace(/,/g, " ");
-        const recorder = (record.taker_name || "").replace(/,/g, " ");
-        const summary = (record.summary || "").replace(/,/g, " ");
+    if (recordsToExport.length === 0) {
+        alert("No records found to export.");
+        btn.textContent = "Export CSV";
+        return;
+    }
 
-        // Parse the JSON attendance data
-        const attData = record.attendance_data || [];
-        
-        attData.forEach(att => {
-            const row = `${date},${topic},${group},${recorder},${summary},${att.name},${att.group},${att.status}`;
-            csvContent += row + "\n";
+    // 4. Generate Files
+    // If checkboxes used -> Separate CSV per log
+    // If "Export All" (no checks) -> One big CSV
+    
+    if (selectedIds.length > 0) {
+        // SEPARATE FILES MODE
+        recordsToExport.forEach(record => {
+            let csv = "Date,Topic,Group,Recorder,Summary,Student Name,Student Group,Status\n";
+            const attData = record.attendance_data || [];
+            attData.forEach(att => {
+                csv += `${record.date},${(record.topic||"").replace(/,/g," ")},${(record.group_filter||"").replace(/,/g," ")},${record.taker_name},${(record.summary||"").replace(/,/g," ")},${att.name},${att.group},${att.status}\n`;
+            });
+            
+            downloadCSV(csv, `Log_${record.date}_${record.topic.substring(0,10)}.csv`);
         });
-    });
+    } else {
+        // COMBINED FILE MODE
+        let csv = "Date,Topic,Group,Recorder,Summary,Student Name,Student Group,Status\n";
+        recordsToExport.forEach(record => {
+            const attData = record.attendance_data || [];
+            attData.forEach(att => {
+                csv += `${record.date},${(record.topic||"").replace(/,/g," ")},${(record.group_filter||"").replace(/,/g," ")},${record.taker_name},${(record.summary||"").replace(/,/g," ")},${att.name},${att.group},${att.status}\n`;
+            });
+        });
+        downloadCSV(csv, `CICR_Full_Report_${new Date().toISOString().slice(0,10)}.csv`);
+    }
 
-    // 4. Download File
-    const encodedUri = encodeURI(csvContent);
+    btn.textContent = "Export CSV";
+}
+
+// Helper to trigger download
+function downloadCSV(content, fileName) {
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `CICR_Attendance_Cloud_${new Date().toISOString().slice(0,10)}.csv`);
+    link.href = "data:text/csv;charset=utf-8," + encodeURI(content);
+    link.download = fileName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
-    exportExcelBtn.textContent = "Export CSV (Excel)";
 }
-
     
 
 function handleScheduleMeeting() {
@@ -1330,6 +1528,20 @@ function initializeListeners() {
             handleLoginSuccess(data.user);
         }
     }
+    // --- NEW LISTENERS FOR MERGED FEATURES ---
+    document.getElementById('export-directory-btn').addEventListener('click', exportDirectoryCSV);
+    
+    // Add Unlock Listener to new global verifier
+    // (Note: The existing unlockBtn listener might point to old local verify.
+    //  The 'window.verifySecurityPin = ...' override above handles it, 
+    //  but ensure the click handler calls verifySecurityPin())
+    document.getElementById('unlock-btn').onclick = verifySecurityPin; 
+
+    // Sync Dropdown population
+    populateSyncMemberDropdown();
+    
+    // Fetch initial PIN
+    fetchAdminPin();
 });
 
     function loginSuccess() {
@@ -1430,4 +1642,305 @@ async function addPermanentGroup(groupName) {
     }
     return false;
 }
+/* =========================================
+   MERGED LOGIC: DIRECTORY, SYNC & ADMIN
+   ========================================= */
+
+// --- 1. MEMBER DIRECTORY LOGIC ---
+async function renderMemberDirectory() {
+    const grid = document.getElementById('member-directory-grid');
+    const badge = document.getElementById('member-count-badge');
+    grid.innerHTML = '<p style="color:#888;">Loading Directory...</p>';
+
+    // Fetch all profiles from Supabase
+    const { data: users, error } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .order('full_name', { ascending: true });
+
+    if (error) {
+        grid.innerHTML = `<p style="color:red">Error: ${error.message}</p>`;
+        return;
+    }
+
+    grid.innerHTML = "";
+    badge.textContent = users.length;
+
+    if (users.length === 0) {
+        grid.innerHTML = `<p style="grid-column: span 3; opacity: 0.5; text-align: center;">No registered members found.</p>`;
+        return;
+    }
+
+    users.forEach(user => {
+        const initial = user.full_name ? user.full_name.charAt(0).toUpperCase() : "?";
+        const photoStyle = user.avatar_url ? `style="background-image: url('${user.avatar_url}')"` : "";
+        const domainDisplay = user.domain || 'General Member';
+        
+        // Check if phone exists (it might be null for old users)
+        const contactInfo = user.phone ? `📞 ${user.phone}` : `📧 ${user.email || 'No Email'}`;
+
+        const card = document.createElement('div');
+        card.className = "member-card";
+        card.innerHTML = `
+            <div class="member-card-photo" ${photoStyle}>
+                ${!user.avatar_url ? `<span style="font-size:30px; color:var(--color-accent);">${initial}</span>` : ''}
+            </div>
+            <div class="member-card-name">${user.full_name}</div>
+            <div class="member-card-detail">${contactInfo}</div>
+            <div class="member-card-detail">🎓 ${user.year || 'N/A'} | ${user.batch || 'N/A'}</div>
+            <div class="member-card-detail" style="color:var(--color-accent); font-weight:bold; margin-top:10px;">
+                ${domainDisplay}
+            </div>
+            ${isAdminUnlocked ? `<button class="btn-revoke-access" onclick="deleteUserAccount('${user.id}')">REVOKE ACCESS</button>` : ''}
+        `;
+        grid.appendChild(card);
+    });
+}
+
+// Search Filter Logic
+document.getElementById('directory-search').addEventListener('input', (e) => {
+    const term = e.target.value.toLowerCase();
+    document.querySelectorAll('.member-card').forEach(card => {
+        card.style.display = card.innerText.toLowerCase().includes(term) ? "block" : "none";
+    });
+});
+
+window.deleteUserAccount = async function(userId) {
+    if(!confirm(`⚠️ CRITICAL: Permanently delete this user profile? This cannot be undone.`)) return;
+    
+    // Delete from profiles table
+    const { error } = await supabaseClient.from('profiles').delete().eq('id', userId);
+    
+    if(error) alert("Deletion Failed: " + error.message);
+    else {
+        alert("User Access Revoked.");
+        renderMemberDirectory();
+    }
+};
+
+async function exportDirectoryCSV() {
+    const { data: users, error } = await supabaseClient.from('profiles').select('*');
+    if (error || !users.length) return alert("No data to export.");
+
+    let csv = "data:text/csv;charset=utf-8,Full Name,Email,Phone,Year,Batch,Domain,Role\n";
+    users.forEach(u => {
+        csv += `"${u.full_name}","${u.email || ''}","${u.phone || ''}","${u.year}","${u.batch}","${u.domain}","${u.role}"\n`;
+    });
+
+    const link = document.createElement("a");
+    link.setAttribute("href", encodeURI(csv));
+    link.setAttribute("download", "CICR_Member_Directory.csv");
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+}
+
+// --- 2. GROUP SYNC LOGIC ---
+// Populate the member dropdown for Sync
+function populateSyncMemberDropdown() {
+    const select = document.getElementById('sync-member-select');
+    if(!select) return;
+    select.innerHTML = '<option value="" disabled selected>-- Select Member --</option>';
+    h4_students.forEach(s => {
+        const opt = document.createElement("option");
+        opt.value = s;
+        opt.textContent = s; // Keeps "Role: Name" format
+        select.appendChild(opt);
+    });
+}
+
+// Add member to local sync list
+document.getElementById('sync-member-select').addEventListener('change', (e) => {
+    const val = e.target.value;
+    if(val && !selectedSyncMembers.includes(val)) {
+        selectedSyncMembers.push(val);
+        renderSyncList();
+    }
+    e.target.value = "";
+});
+
+function renderSyncList() {
+    const list = document.getElementById('sync-member-list');
+    list.innerHTML = "";
+    selectedSyncMembers.forEach(m => {
+        const name = m.includes(": ") ? m.split(": ")[1] : m;
+        const tag = document.createElement("div");
+        tag.className = "sync-member-tag";
+        tag.innerHTML = `${name} <span class="remove" onclick="removeSyncMember('${m}')">×</span>`;
+        list.appendChild(tag);
+    });
+}
+
+window.removeSyncMember = function(val) {
+    selectedSyncMembers = selectedSyncMembers.filter(m => m !== val);
+    renderSyncList();
+};
+
+// Generate Sync Group (Save to DB)
+document.getElementById('generate-sync-meet-btn').addEventListener('click', async () => {
+    const title = document.getElementById('sync-project-title').value.trim();
+    if(!title || selectedSyncMembers.length === 0) return alert("Enter Title and select Members.");
+
+    const { error } = await supabaseClient.from('sync_groups').insert({
+        title: title,
+        members: selectedSyncMembers,
+        chat_logs: [{ sender: "SYSTEM", text: `Sync Initialized for ${title}`, time: new Date().toLocaleTimeString() }]
+    });
+
+    if(error) alert("Sync Error: " + error.message);
+    else {
+        showSuccessAnimation();
+        // Open Google Meet
+        window.open("https://meet.google.com/new", '_blank');
+        loadSyncChat(title); // Start listening to chat
+    }
+});
+
+// Sync Chat Logic
+async function loadSyncChat(activeTitle) {
+    const display = document.getElementById('sync-chat-messages');
+    display.innerHTML = "Loading...";
+    
+    // Fetch latest group matching title
+    const { data, error } = await supabaseClient
+        .from('sync_groups')
+        .select('*')
+        .eq('title', activeTitle)
+        .order('created_at', {ascending:false})
+        .limit(1)
+        .single();
+
+    if(data) {
+        currentSyncGroup = data; // Store active group
+        display.innerHTML = "";
+        document.getElementById('sync-chat-header').textContent = `PROJECT CHAT: ${data.title.toUpperCase()}`;
+        
+        (data.chat_logs || []).forEach(msg => {
+            const div = document.createElement("div");
+            div.style.marginBottom = "8px";
+            div.innerHTML = `<span style="color:var(--color-accent); font-weight:bold;">${msg.sender}:</span> <span style="color:#ccc;">${msg.text}</span> <small style="float:right; opacity:0.5;">${msg.time}</small>`;
+            display.appendChild(div);
+        });
+        display.scrollTop = display.scrollHeight;
+    } else {
+        display.innerHTML = "No active sync found for this title.";
+    }
+}
+
+// Send Sync Message
+document.getElementById('sync-chat-send-btn').addEventListener('click', async () => {
+    if(!currentSyncGroup) return alert("No active sync group loaded. Generate one first.");
+    const input = document.getElementById('sync-chat-input');
+    const text = input.value.trim();
+    if(!text) return;
+
+    const newMsg = {
+        sender: currentUser ? currentUser.name : "Member",
+        text: text,
+        time: new Date().toLocaleTimeString()
+    };
+
+    const updatedLogs = [...(currentSyncGroup.chat_logs || []), newMsg];
+
+    // Update DB
+    const { error } = await supabaseClient
+        .from('sync_groups')
+        .update({ chat_logs: updatedLogs })
+        .eq('id', currentSyncGroup.id);
+
+    if(!error) {
+        input.value = "";
+        loadSyncChat(currentSyncGroup.title); // Refresh UI
+    }
+});
+
+
+// --- 3. ADMIN PIN & ONBOARDING LOGIC ---
+
+async function fetchAdminPin() {
+    const { data } = await supabaseClient
+        .from('app_settings')
+        .select('data_value')
+        .eq('category', 'admin_pin')
+        .single();
+    
+    if(data && data.data_value) {
+        GLOBAL_PIN = data.data_value.replace(/"/g, ''); // Remove quotes if JSON stored string
+    }
+}
+
+// Override the verify function
+window.verifySecurityPin = function() {
+    fetchAdminPin().then(() => {
+        const input = document.getElementById('security-pin-input');
+        if(input.value === GLOBAL_PIN) {
+            isAdminUnlocked = true;
+            document.getElementById('security-overlay').style.display = 'none';
+            // Resume pending tab switch if any
+            if(window.pendingTabId) switchTab(window.pendingTabId);
+        } else {
+            alert("ACCESS DENIED: INCORRECT PIN");
+            input.value = "";
+        }
+    });
+};
+
+document.getElementById('update-pin-btn').addEventListener('click', async () => {
+    const current = document.getElementById('current-security-pin-verify').value;
+    const newPin = document.getElementById('new-security-pin').value;
+    
+    if(current !== GLOBAL_PIN) return alert("Current PIN is incorrect.");
+    if(newPin.length !== 4) return alert("New PIN must be 4 digits.");
+
+    const { error } = await supabaseClient
+        .from('app_settings')
+        .upsert({ category: 'admin_pin', data_value: newPin });
+
+    if(!error) {
+        GLOBAL_PIN = newPin;
+        alert("Security PIN Updated Successfully.");
+        showSuccessAnimation();
+    }
+});
+
+// Update Add Member to handle new fields (Onboarding)
+const originalAddMember = addMember; // Keep reference to old logic if needed
+window.addMember = async function() {
+    const name = document.getElementById('new-member-name').value.trim();
+    const email = document.getElementById('new-member-email').value.trim();
+    const phone = document.getElementById('new-member-phone').value.trim();
+    const year = document.getElementById('new-member-year-select').value;
+    const batch = document.getElementById('new-member-batch').value.trim();
+    let group = document.getElementById('new-member-group').value;
+
+    if(group === "Custom") group = document.getElementById('custom-group-input').value.trim();
+
+    if(!name || !email || !batch) return alert("Name, Email, and Batch are required.");
+
+    // 1. Update Dropdown List (App Settings)
+    const memberString = `${group}: ${name}`;
+    if(!h4_students.includes(memberString)) {
+        h4_students.push(memberString);
+        h4_students.sort();
+        saveStudents(); // Updates 'members_list' in DB
+    }
+
+    // 2. Send Invitation Email (Mailto)
+    const subject = encodeURIComponent("CICR Portal Invitation");
+    const body = encodeURIComponent(
+        `Hello ${name},\n\nYou have been onboarded to the CICR Portal.\n\n` +
+        `Domain: ${group}\nBatch: ${batch}\n\n` +
+        `Please register using this email: ${email}\n` +
+        `Portal Link: https://cicr.in\n\n` +
+        `Regards,\nCICR Admin`
+    );
+    window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+
+    alert("User added to dropdowns. Invitation email draft opened.");
+    
+    // Clear fields
+    document.getElementById('new-member-name').value = "";
+    document.getElementById('new-member-email').value = "";
+    document.getElementById('new-member-phone').value = "";
+};
 initializeListeners();
