@@ -1,567 +1,818 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>CICR Management Portal</title>
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CICR Management Portal</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Roboto:wght@400;500&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
 
 </head>
+
 <body>
 
-<div id="tech-gate">
-    <div class="gate-left"></div>
-    <div class="gate-right"></div>
-    <div class="gate-lock">PROCESSING</div>
-</div>
-
-<div id="security-overlay">
-    <div class="security-box">
-        <span class="security-icon">🔒</span>
-        <h3>Restricted Access</h3>
-        <p>This section requires High-Level Security Clearance.</p>
-        <input type="password" id="security-pin-input" placeholder="PIN" maxlength="4" autocomplete="off">
-        <button id="unlock-btn" class="btn-unlock">UNLOCK</button>
-        <div id="security-cancel" class="security-cancel">Cancel / Go Back</div>
+    <div id="tech-gate">
+        <div class="gate-left"></div>
+        <div class="gate-right"></div>
+        <div class="gate-lock">PROCESSING</div>
     </div>
-</div>
 
-<canvas id="particles-canvas"></canvas>
-
-<div id="splash-screen">
-    <img src="https://i.pinimg.com/736x/67/0e/af/670eaf4523e896c4e587bc2b87ab0f4a.jpg" 
-         alt="CICR Logo" 
-         id="splash-screen-logo">
-    <h1>CICR</h1>
-    <p>Centre for Innovation & Creativity in Robotics</p>
-    <p class="tap-hint">[ TAP TO INITIALIZE SYSTEM ]</p>
-</div>
-
-<div id="success-screen" style="display: none;">
-    <div class="success-icon">🔓</div>
-    <div class="success-text">ACCESS GRANTED<br><span style="color:white; font-size: 20px;">WELCOME MEMBER</span></div>
-    <div class="success-subtext">ENTERING COMMAND CENTER...</div>
-</div>
-
-<div id="action-success-overlay">
-    <div class="success-container">
-        <span class="robot-emoji">🤖</span>
-        <span class="big-green-tick">✓</span>
-        <div class="success-message">DATA LOGGED SUCCESSFULLY</div>
+    <div id="security-overlay">
+        <div class="security-box">
+            <span class="security-icon">🔒</span>
+            <h3>Restricted Access</h3>
+            <p>This section requires High-Level Security Clearance.</p>
+            <input type="password" id="security-pin-input" placeholder="PIN" maxlength="4" autocomplete="off">
+            <button id="unlock-btn" class="btn-unlock">UNLOCK</button>
+            <div id="security-cancel" class="security-cancel">Cancel / Go Back</div>
+        </div>
     </div>
-</div>
 
-<div class="container">
-	<div class="header-branding" role="banner">
-		<img src="https://i.pinimg.com/736x/67/0e/af/670eaf4523e896c4e587bc2b87ab0f4a.jpg" alt="Logo" class="header-logo header-logo-left">
-		<img src="https://i.pinimg.com/736x/67/0e/af/670eaf4523e896c4e587bc2b87ab0f4a.jpg" alt="Logo" class="header-logo header-logo-right">
-		
-        <div id="user-avatar-display" title="My Profile">?</div>
+    <canvas id="particles-canvas"></canvas>
 
-		<h1>CICR <span>MANAGEMENT</span> PORTAL</h1>
-        <p style="margin:0; font-size:14px; color: var(--color-accent-dim); letter-spacing: 1px; font-weight:600;">CENTRE FOR INNOVATION & CREATIVITY IN ROBOTICS</p>
-		
-        <p class="designer-credit">
-            SYSTEM DESIGNED BY<br>
-            <span style="color: #fff; font-size: 14px; font-weight: 700;">KUMAR SHAURYA & SHRESTHA GUPTA</span>         </p>
+    <div id="splash-screen">
+        <img src="https://i.pinimg.com/736x/67/0e/af/670eaf4523e896c4e587bc2b87ab0f4a.jpg" alt="CICR Logo"
+            id="splash-screen-logo">
+        <h1>CICR</h1>
+        <p>Centre for Innovation & Creativity in Robotics</p>
+        <p class="tap-hint">[ TAP TO INITIALIZE SYSTEM ]</p>
+    </div>
 
-		<div id="digital-clock">Loading...</div>
-	</div>
+    <div id="success-screen" style="display: none;">
+        <div class="success-icon">🔓</div>
+        <div class="success-text">ACCESS GRANTED<br><span style="color:white; font-size: 20px;">WELCOME MEMBER</span>
+        </div>
+        <div class="success-subtext">ENTERING COMMAND CENTER...</div>
+    </div>
 
-	<div id="login-screen" style="display: none;">
-		<div id="login-form-card" class="energy-frame">
-            <img src="https://i.pinimg.com/736x/67/0e/af/670eaf4523e896c4e587bc2b87ab0f4a.jpg" alt="CICR Login Logo" class="login-logo-img">
-            
-			<h2 id="auth-title">CICR MEMBER ACCESS</h2>
-			<form id="login-form">
-				<div>
-					<label for="username" id="label-user">Email or Phone No.</label>
-					<input type="text" id="username" required placeholder="Enter Email/Phone (or Master ID)">
-				</div>
-                
-                <div id="registration-fields">
-                    <div id="otp-section">
-                        <label style="color:var(--color-accent);">VERIFICATION REQUIRED</label>
-                        <button type="button" id="send-otp-btn" style="width:100%;">SEND OTP TO CONTACT</button>
-                        <div id="otp-input-wrapper">
-                            <input type="text" id="otp-input" placeholder="Enter 6-Digit Code" style="text-align:center; letter-spacing:5px;">
-                            <button type="button" id="verify-otp-btn" style="width:100%; margin-top:5px;">VERIFY CODE</button>
-                        </div>
-                        <p id="otp-status"></p>
+    <div id="action-success-overlay">
+        <div class="success-container">
+            <span class="robot-emoji">🤖</span>
+            <span class="big-green-tick">✓</span>
+            <div class="success-message">DATA LOGGED SUCCESSFULLY</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="header-branding" role="banner">
+            <img src="https://i.pinimg.com/736x/67/0e/af/670eaf4523e896c4e587bc2b87ab0f4a.jpg" alt="Logo"
+                class="header-logo header-logo-left">
+            <img src="https://i.pinimg.com/736x/67/0e/af/670eaf4523e896c4e587bc2b87ab0f4a.jpg" alt="Logo"
+                class="header-logo header-logo-right">
+
+            <div id="user-avatar-display" title="My Profile">?</div>
+
+            <h1>CICR <span>MANAGEMENT</span> PORTAL</h1>
+            <p style="margin:0; font-size:14px; color: var(--color-accent-dim); letter-spacing: 1px; font-weight:600;">
+                CENTRE FOR INNOVATION & CREATIVITY IN ROBOTICS</p>
+
+            <p class="designer-credit">
+                SYSTEM DESIGNED BY<br>
+                <span style="color: #fff; font-size: 14px; font-weight: 700;">KUMAR SHAURYA & SHRESTHA GUPTA</span>
+            </p>
+
+            <div id="digital-clock">Loading...</div>
+        </div>
+
+        <div id="login-screen" style="display: none;">
+            <div id="login-form-card" class="energy-frame">
+                <img src="https://i.pinimg.com/736x/67/0e/af/670eaf4523e896c4e587bc2b87ab0f4a.jpg" alt="CICR Login Logo"
+                    class="login-logo-img">
+
+                <h2 id="auth-title">CICR MEMBER ACCESS</h2>
+                <form id="login-form">
+                    <div>
+                        <label for="username" id="label-user">Email or Phone No.</label>
+                        <input type="text" id="username" required placeholder="Enter Email/Phone (or Master ID)">
                     </div>
 
-                    <div style="margin-bottom: 20px;">
-                        <label for="reg-name">Full Name</label>
-                        <input type="text" id="reg-name" placeholder="Your Name">
-                    </div>
-                    <div style="margin-bottom: 20px;">
-                        <label for="reg-year">Year</label>
-                        <select id="reg-year">
-                            <option value="1st Year">1st Year</option>
-                            <option value="2nd Year">2nd Year</option>
-                            <option value="3rd Year">3rd Year</option>
-                            <option value="4th Year">4th Year</option>
-                        </select>
-                    </div>
-                    <div style="margin-bottom: 20px;">
-                        <label for="reg-batch">Batch</label>
-                        <input type="text" id="reg-batch" placeholder="e.g. B14">
-                    </div>
-                </div>
-
-				<div style="position: relative;">
-					<label for="password">Password</label>
-                    <div class="password-wrapper">
-					    <input type="password" id="password" required placeholder="Enter Password" style="padding-right: 40px; font-family: 'Verdana', sans-serif;">
-                        <div id="toggle-password" class="password-toggle-icon">
-                            <svg class="eye-show" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
-                            <svg class="eye-hide" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="display:none;"><path d="M11.83 9L15 12.17V12c0-1.66-1.34-3-3-3h-.17zm-4.3.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm-2.53 1.1l9.53 9.53 1.27-1.27-3.23-3.23c-1.39.73-2.95 1.12-4.57 1.12-5 0-9.27-3.11-11-7.5 1.24-3.14 3.75-5.6 6.84-6.84l-2.5-2.5 1.27-1.27.46.46L6.27 10.9zm13.23-4.4c1.65 1.38 3 3.14 3.76 5.5-1.73 4.39-6 7.5-11 7.5-1.04 0-2.05-.13-3.03-.38l2.25-2.25c.25.08.52.13.78.13 2.76 0 5-2.24 5-5 0-.26-.05-.53-.13-.78l2.25-2.25c.38.62.74 1.28 1.12 2.03z"/></svg>
-                        </div>
-                    </div>
-				</div>
-                <div style="text-align: right; display:flex; justify-content:space-between; margin-top:5px;">
-                    <span id="toggle-auth-btn" class="toggle-auth-link">Create New Account</span>
-				    <a href="mailto:kshaurya209@gmail.com?subject=CICR%20Password%20Reset" class="forgot-password-link">Forgot Password?</a>
-                </div>
-				<button type="submit" id="login-btn">LOGIN</button>
-			</form>
-			<p id="login-error" style="color:var(--color-danger); margin-top:15px; display:none; font-size:13px; font-weight:600;">ACCESS DENIED. INVALID CREDENTIALS.</p>
-		</div>
-	</div>
-    
-	<div id="app-content" style="display: none;">
-        <nav class="tab-navigation" role="tablist">
-            <a class="tab-link active" data-tab="attendance" role="tab" aria-selected="true">ATTENDANCE</a>
-            <a class="tab-link" data-tab="history" role="tab" aria-selected="false">LOGS</a>
-            <a class="tab-link" data-tab="reports" role="tab" aria-selected="false">ANALYTICS</a>
-            <a class="tab-link" data-tab="projects" role="tab" aria-selected="false">CICR SHELF</a>
-            <a class="tab-link" data-tab="equipment" role="tab" aria-selected="false">EQUIPMENT</a>
-            <a class="tab-link" data-tab="chat" role="tab" aria-selected="false">COMMUNITY</a>
-            <a class="tab-link" data-tab="scheduling" role="tab" aria-selected="false">SCHEDULING</a>
-            <a class="tab-link" data-tab="admin" role="tab" aria-selected="false">ADMIN</a>
-            <a class="tab-link" data-tab="about" role="tab" aria-selected="false">ABOUT CICR</a>
-            <a class="tab-link" data-tab="account" role="tab" aria-selected="false">MY ACCOUNT</a>
-        </nav>
-
-		<div class="main-content">
-            <section id="attendance-content" class="tab-content active" role="tabpanel">
-				<div id="attendance-card" class="energy-frame">
-					<h2 id="attendance-heading">Attendance Command Center</h2>
-					
-                    <div id="attendance-hud" class="hud-dashboard">
-                        <div class="hud-stat-box">
-                            <span class="hud-stat-label">Present</span>
-                            <div class="hud-stat-value stat-present" id="total-present">0</div>
-                        </div>
-                        <div class="hud-stat-box">
-                            <span class="hud-stat-label">Absent</span>
-                            <div class="hud-stat-value stat-absent" id="total-absent">0</div>
-                        </div>
-                        <div class="hud-stat-box">
-                            <span class="hud-stat-label">Ratio</span>
-                            <div class="hud-stat-value stat-ratio" id="present-percentage">0.0%</div>
-                        </div>
-                        <button id="save-data-btn" class="status-button btn-save" style="margin:0; height: 40px;">SAVE LOG</button>
-                    </div>
-
-					<div class="controls-container">
-						<div>
-							<label for="attendance-date">Session Date</label>
-							<div class="date-picker-wrapper">
-								<input type="date" id="attendance-date" />
-								<button type="button" id="open-calendar-btn">📅</button>
-							</div>
-						</div>
-						<div>
-							<label for="attendance-taker-select">Recorded By</label>
-							<select id="attendance-taker-select"><option value="" disabled selected>-- Select Member --</option></select>
-						</div>
-						<div>
-							<label for="year-select">Group Filter (Multiple)</label>
-							<select id="year-select" multiple size="4"></select>
-						</div>
-						<div>
-							<label for="attendance-subject">Meeting Topic</label>
-							<select id="attendance-subject" onchange="handleTopicChange()">
-								<option value="Research Strategy" selected>Research Strategy Session</option>
-								<option value="Patent Review">Patent Review Committee</option>
-								<option value="Budget Planning">Quarterly Budget Planning</option>
-								<option value="Project Update">Project Progress Update</option>
-								<option value="Other">Other Meeting Topic</option>
-							</select>
-							<input type="text" id="custom-topic-input" placeholder="Enter Custom Topic" style="display:none; margin-top:5px;" />
-						</div>
-						<div class="full-span">
-							<label for="meeting-summary">Meeting Summary</label>
-							<textarea id="meeting-summary" rows="2" placeholder="Brief session summary..."></textarea>
-						</div>
-						<div class="full-span">
-							<button id="create-gmeet-btn">Google Meet & Calendar Link</button>
-						</div>
-					</div>
-					
-                    <div style="border-top: 1px solid #333; margin-top: 20px; padding-top: 10px;">
-                        <p class="current-class-display">ACTIVE SESSION: <strong id="current-subject-display" style="color: var(--color-accent);">Research Strategy Session</strong></p>
-					    <ul id="attendance-list"><li>Select a Group Filter to load members.</li></ul>
-                    </div>
-                    
-                    <div id="attendance-absent-summary" style="margin-top: 20px; font-size: 12px; color: #888;">
-						<span style="color: var(--color-danger); font-weight:bold;">Absentees:</span>
-						<span id="absent-list" style="color: #aaa;">-</span>
-					</div>
-				</div>
-			</section>
-
-            <section id="history-content" class="tab-content" role="tabpanel">
-				<div id="history-card" class="energy-frame">
-					<h2 id="history-heading">Meeting Logs</h2>
-					<div class="history-controls" style="display: flex; gap: 10px; margin-bottom: 20px;">
-						<button id="export-excel-btn" class="btn-utility btn-export-excel">Export CSV (Excel)</button>
-						<button id="remove-selected-btn" class="btn-utility btn-remove-selected">Delete Selected</button>
-						<button id="clear-history-btn" class="btn-utility btn-clear-history">Clear All</button>
-					</div>
-					<ul id="history-list" class="history-list" style="list-style: none; padding:0;"><li>Loading...</li></ul>
-				</div>
-			</section>
-
-            <section id="reports-content" class="tab-content" role="tabpanel">
-                <div id="personal-report-card" class="energy-frame">
-                    <h2 id="report-heading">Analytics Leaderboard</h2>
-                    <div class="table-wrapper">
-                        <table id="personal-report-table">
-                            <thead><tr><th>MEMBER</th><th>UNIT</th><th>ATTENDANCE %</th></tr></thead>
-                            <tbody id="personal-report-body"><tr><td colspan="3">Calculations Pending...</td></tr></tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
-
-            <section id="projects-content" class="tab-content" role="tabpanel">
-                <div class="energy-frame">
-                    <h2>Add to CICR Shelf</h2>
-                    <p style="font-size:12px; color:#888; margin-top:-10px;">Archive projects for junior members to reference.</p>
-                    <div class="controls-container">
-                        <div>
-                            <label for="project-name">Project Title</label>
-                            <input type="text" id="project-name" placeholder="Enter Project Title">
-                        </div>
-                        <div>
-                            <label for="project-type">Project Status</label>
-                            <select id="project-type">
-                                <option value="completed">Completed (Archived)</option>
-                                <option value="live">Live / Ongoing</option>
-                            </select>
-                        </div>
-                        <div class="full-span">
-                            <label for="project-members">Senior / Lead Member Name</label>
-                            <input type="text" id="project-members" placeholder="e.g. Kumar Shaurya (Lead)">
-                        </div>
-                        <div class="full-span">
-                            <label for="project-purpose">Purpose of Project</label>
-                            <textarea id="project-purpose" rows="2" placeholder="Describe the goal/function of this project..."></textarea>
-                        </div>
-                        <div class="full-span">
-                            <label for="project-tech">Tech Stack (Tags)</label>
-                            <input type="text" id="project-tech" placeholder="e.g. Arduino, Python, Raspberry Pi, HTML/CSS">
-                        </div>
-                        <div class="full-span">
-                            <label for="project-link">Github/Code Link (URL)</label>
-                            <input type="url" id="project-link" placeholder="https://github.com/...">
-                        </div>
-                        <div class="full-span">
-                            <label for="project-tinkercad" style="color: var(--color-tinker);">Tinkercad Simulation Link</label>
-                            <input type="url" id="project-tinkercad" placeholder="https://www.tinkercad.com/..." style="border-color: var(--color-tinker);">
-                        </div>
-                        <div>
-                            <label for="project-start">Start Date</label>
-                            <div class="date-picker-wrapper">
-                                <input type="date" id="project-start">
-                                <button type="button" id="open-calendar-start-btn">📅</button>
+                    <div id="registration-fields">
+                        <div id="otp-section">
+                            <label style="color:var(--color-accent);">VERIFICATION REQUIRED</label>
+                            <button type="button" id="send-otp-btn" style="width:100%;">SEND OTP TO CONTACT</button>
+                            <div id="otp-input-wrapper">
+                                <input type="text" id="otp-input" placeholder="Enter 6-Digit Code"
+                                    style="text-align:center; letter-spacing:5px;">
+                                <button type="button" id="verify-otp-btn" style="width:100%; margin-top:5px;">VERIFY
+                                    CODE</button>
                             </div>
-                        </div>
-                        <div>
-                            <label for="project-end">End Date</label>
-                            <div class="date-picker-wrapper">
-                                <input type="date" id="project-end">
-                                <button type="button" id="open-calendar-end-btn">📅</button>
-                            </div>
-                        </div>
-                        <div class="full-span">
-                            <button id="add-project-btn">Add to Shelf</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="energy-frame">
-                    <h2 style="color: var(--color-success);">CICR Project Shelf</h2>
-                    <div id="live-projects-list">
-                        </div>
-                </div>
-            </section>
-
-            <section id="equipment-content" class="tab-content" role="tabpanel">
-                <div class="energy-frame">
-                    <h2>Hardware Issuance Protocol</h2>
-                    <p style="font-size:12px; color:#888; margin-top:-10px;">Log equipment distribution for project work.</p>
-                    
-                    <div class="controls-container">
-                        <div>
-                            <label for="eq-name">Equipment Name</label>
-                            <input type="text" id="eq-name" placeholder="e.g. Arduino Uno, LiPo Battery">
-                        </div>
-                        <div>
-                            <label for="eq-member-select">Issued To (Member)</label>
-                            <select id="eq-member-select">
-                                <option value="" disabled selected>-- Select Member --</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="eq-group">Project Group/Unit</label>
-                            <input type="text" id="eq-group" placeholder="e.g. Drone Team Alpha">
-                        </div>
-                        <div>
-                            <label>Issue Date</label>
-                            <input type="date" id="eq-issue-date">
-                        </div>
-                        <div>
-                            <label>Return Due Date</label>
-                            <input type="date" id="eq-return-date">
-                        </div>
-                        <div class="full-span">
-                            <button id="add-equipment-btn" class="btn-save">ISSUE EQUIPMENT</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="energy-frame">
-                    <h2 style="color: var(--color-tinker);">Active Hardware Logs</h2>
-                    <div class="table-wrapper" style="overflow-x:auto;">
-                        <table id="personal-report-table">
-                            <thead>
-                                <tr>
-                                    <th>EQUIPMENT</th>
-                                    <th>ISSUED TO</th>
-                                    <th>DATES</th>
-                                    <th>STATUS</th>
-                                    <th>ACTION</th>
-                                </tr>
-                            </thead>
-                            <tbody id="equipment-log-body">
-                                <tr><td colspan="5" style="text-align:center; opacity:0.5;">No active equipment logs.</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
-            <section id="chat-content" class="tab-content" role="tabpanel">
-                <div class="energy-frame chat-wrapper">
-                    <h2>Secure Community Channel</h2>
-                    <p style="font-size: 11px; color: #888; margin-top:-15px; margin-bottom: 20px;">* Note: This secure channel stores data locally. It is for internal logging purposes.</p>
-                    <div id="chat-display" class="chat-display">
-                        </div>
-                    <div class="chat-controls">
-                        <input type="text" id="chat-input" placeholder="Transmit message to channel...">
-                        <button id="chat-send-btn">SEND</button>
-                    </div>
-                </div>
-            </section>
-
-            <section id="scheduling-content" class="tab-content" role="tabpanel">
-                <div id="scheduling-card" class="energy-frame">
-                    <h3>Email Scheduler</h3>
-                    <div class="scheduling-grid">
-                        <div>
-                            <label for="schedule-initiator-select">Sender</label>
-                            <select id="schedule-initiator-select"><option value="" disabled selected>-- Select Sender --</option></select>
-                        </div>
-                        <div>
-                            <label for="schedule-recipient-select">Recipient</label>
-                            <select id="schedule-recipient-select"><option value="" disabled selected>-- Select Recipient --</option></select>
-                        </div>
-                        <div><label>Sender Email</label><input type="email" id="sender-email" placeholder="sender@gmail.com"></div>
-                        <div><label>Recipient Email</label><input type="text" id="recipient-email" placeholder="recipient@email.com"></div>
-                        <div class="full-span"><label>Subject</label><input type="text" id="schedule-subject" placeholder="Meeting Subject"></div>
-                        <div>
-							<label>Date</label>
-							<div class="date-picker-wrapper">
-                            	<input type="date" id="schedule-date">
-								<button type="button" id="open-calendar-scheduler-btn">📅</button>
-							</div>
-                        </div>
-						<div><label>Time</label><input type="time" id="schedule-time" value="10:00"></div>
-                        <div>
-                            <label>Location Type</label>
-                            <select id="schedule-location-type"><option value="Online">Online</option><option value="Offline">Offline</option></select>
-                        </div>
-                        <div><label>Details</label><input type="text" id="schedule-location-details" placeholder="Link or Room No"></div>
-                        <div class="full-span"><button id="schedule-meeting-btn">Generate & Send</button></div>
-                    </div>
-                    <h3>Unit / Group Management</h3>
-                        <div class="member-control-grid">
-                            <div class="full-span"><label>Add New Group</label><input type="text" id="new-permanent-group" placeholder="e.g. Research Subunit Beta"></div>
-                            <div class="full-span" style="padding-top:5px;"><button id="add-permanent-group-btn">Add Group</button></div>
-                        </div>
-                </div>
-            </section>
-
-            <section id="admin-content" class="tab-content" role="tabpanel">
-                <div id="admin-tools-wrapper">
-                    <div id="member-management-card" class="energy-frame">
-                        <h3>User Database Management</h3>
-                        <div class="member-control-grid">
-                            <div><label>New User Name</label><input type="text" id="new-member-name" placeholder="e.g. Anil Sharma"></div>
-                            <div><label>Assign Unit</label><select id="new-member-group"></select></div>
-                            <div class="full-span" id="custom-group-input-wrapper" style="display:none;"><label>Custom Unit Name</label><input type="text" id="custom-group-input"></div>
-                            <div style="grid-column: span 2;"><button id="add-member-btn">Add User</button></div>
-                            <div class="member-control-group full-span"><label>Remove User</label><select id="remove-member-select"></select></div>
-                            <div style="padding-top:15px;" class="full-span"><button id="remove-member-btn">Remove User</button></div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section id="about-content" class="tab-content" role="tabpanel">
-                <div class="energy-frame">
-                    <div class="about-dashboard">
-                        
-                        <div class="about-info-box about-hero-box col-span-12">
-                            <h4>// 01. SYSTEM_IDENTITY::MATRIX</h4>
-                            <p style="font-size: 13px; color: #ccc; margin: 0;">
-                                <strong style="color:#fff; font-size:15px; display:block; margin-bottom:5px;">Creative and Innovative Cell in Robotics (CICR)</strong>
-                                <span style="color:var(--color-accent);">"The Robotics Hub of JIIT-128"</span><br><br>
-                                Officially designated as the primary technical hub for Sector 128 Campus, operating under the <strong>Jaypee Youth Club (JYC)</strong>. A multidisciplinary innovation society integrating software, AI, and electronics.
-                            </p>
+                            <p id="otp-status"></p>
                         </div>
 
-                        <div class="col-span-8">
-                            <div class="about-info-box" style="margin-bottom: 20px;">
-                                <h4>// 02. CORE_FUNCTIONS & DOMAINS</h4>
-                                <table class="domain-table">
-                                    <tr>
-                                        <th width="30%">DOMAIN</th>
-                                        <th>FOCUS AREAS</th>
-                                    </tr>
-                                    <tr>
-                                        <td><span class="tech-badge">ROBOTICS</span></td>
-                                        <td>Embedded Systems, Arduino, IoT, PCB Design, Hardware Prototyping.</td>
-                                    </tr>
-                                    <tr>
-                                        <td><span class="tech-badge">SOFTWARE</span></td>
-                                        <td>AI/ML, Computer Vision, Data Science, Full-stack Web Dev, App Dev.</td>
-                                    </tr>
-                                </table>
-
-                                <div style="margin-top: 15px; padding-top:10px; border-top:1px solid #333;">
-                                    <strong style="color:#fff; font-size:11px; text-transform:uppercase;">Key Events Protocol:</strong>
-                                    <div style="margin-top:5px; display:flex; gap:5px; flex-wrap:wrap;">
-                                        <span class="tech-badge" style="border-color:var(--color-tinker); color:var(--color-tinker);">TechTonic (Flagship)</span>
-                                        <span class="tech-badge">Circuit Rush</span>
-                                        <span class="tech-badge">Robo Soccer</span>
-                                    </div>
-                                </div>
-                            </div>
+                        <div style="margin-bottom: 20px;">
+                            <label for="reg-name">Full Name</label>
+                            <input type="text" id="reg-name" placeholder="Your Name">
                         </div>
-
-                        <div class="col-span-4" style="display:flex; flex-direction:column; gap:20px;">
-                            <div class="about-info-box">
-                                <h4>// 03. COMMAND_HIERARCHY</h4>
-                                <ul style="list-style: none; padding: 0; font-size: 12px; color: #ccc;">
-                                    <li style="margin-bottom: 8px;"><span style="color: var(--color-tinker);">■</span> <strong style="color:#fff;">Heads (4th Yr)</strong><br>Strategy & Mentorship</li>
-                                    <li style="margin-bottom: 8px;"><span style="color: var(--color-accent);">■</span> <strong style="color:#fff;">Coordinators (3rd Yr)</strong><br>Operations & Events</li>
-                                    <li style="margin-bottom: 8px;"><span style="color: var(--color-success);">■</span> <strong style="color:#fff;">Core Team (2nd Yr)</strong><br>Project Execution</li>
-                                    <li><span style="color: #888;">■</span> <strong style="color:#fff;">Volunteers (1st Yr)</strong><br>Learning</li>
-                                </ul>
-                            </div>
-
-                            <div class="connect-grid" style="grid-template-columns: 1fr;">
-                                <a href="https://www.instagram.com/cicr_jiit?igsh=MWNib3pma2xiYXpqcQ==" target="_blank" class="social-card">
-                                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Instagram_logo_2016.svg/2048px-Instagram_logo_2016.svg.png" alt="Insta" class="social-icon-img" style="width:30px; height:30px;">
-                                    <span class="social-label">Instagram</span>
-                                </a>
-                                <a href="https://www.linkedin.com/company/cicrjiit128/" target="_blank" class="social-card">
-                                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/LinkedIn_logo_initials.png/960px-LinkedIn_logo_initials.png" alt="LinkedIn" class="social-icon-img" style="width:30px; height:30px;">
-                                    <span class="social-label">LinkedIn</span>
-                                </a>
-                                <a href="https://www.cicr.in/" target="_blank" class="social-card">
-                                    <img src="https://i.pinimg.com/736x/67/0e/af/670eaf4523e896c4e587bc2b87ab0f4a.jpg" alt="Web" class="social-icon-img" style="border-radius: 50%; width:30px; height:30px;">
-                                    <span class="social-label">Web Portal</span>
-                                </a>
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
-            </section>
-
-            <section id="account-content" class="tab-content" role="tabpanel">
-                <div class="energy-frame">
-                    <h2>My Profile</h2>
-                    <div class="profile-grid">
-                        <div class="full-span" style="text-align:center;">
-                            <div style="width: 100px; height: 100px; margin: 0 auto 10px; border-radius:50%; border:2px solid var(--color-accent); overflow:hidden; position:relative;">
-                                <div id="profile-preview" style="width:100%; height:100%; background:#222; background-size:cover; background-position:center;"></div>
-                            </div>
-                            <label for="profile-pic-input" style="cursor:pointer; color:var(--color-accent); text-decoration:underline;">Upload Photo</label>
-                            <input type="file" id="profile-pic-input" accept="image/*" style="display:none;">
-                        </div>
-
-                        <div>
-                            <label>User ID (Email/Phone)</label>
-                            <input type="text" id="profile-id" disabled style="opacity: 0.6;">
-                        </div>
-                        <div>
-                            <label>Full Name</label>
-                            <input type="text" id="profile-name">
-                        </div>
-                        <div>
-                            <label>Year</label>
-                            <select id="profile-year">
+                        <div style="margin-bottom: 20px;">
+                            <label for="reg-year">Year</label>
+                            <select id="reg-year">
                                 <option value="1st Year">1st Year</option>
                                 <option value="2nd Year">2nd Year</option>
                                 <option value="3rd Year">3rd Year</option>
                                 <option value="4th Year">4th Year</option>
                             </select>
                         </div>
-                        <div>
-                            <label>Batch</label>
-                            <input type="text" id="profile-batch">
-                        </div>
-                        <div class="full-span" style="margin-top: 10px;">
-                            <button id="update-profile-btn">Save Changes</button>
-                        </div>
-                        <div class="full-span" style="border-top: 1px solid #333; margin-top: 20px; padding-top: 20px;">
-                            <button id="logout-btn">LOGOUT</button>
+                        <div style="margin-bottom: 20px;">
+                            <label for="reg-batch">Batch</label>
+                            <input type="text" id="reg-batch" placeholder="e.g. B14">
                         </div>
                     </div>
-                </div>
-            </section>
-		</div>
 
-        <div class="dev-footer">
-            <h3>SYSTEM DEVELOPERS</h3>
-            <div class="dev-container">
-                <a href="https://www.instagram.com/iamshauryaaa.__?igsh=N3oyOWkxeXB5dHpw" target="_blank" class="dev-link">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Instagram_logo_2016.svg/2048px-Instagram_logo_2016.svg.png" alt="Insta" class="insta-logo-small">
-                    KUMAR SHAURYA
-                </a>
-                <a href="https://www.instagram.com/shreshtha8994?igsh=NTlsdmd3c21samtv" target="_blank" class="dev-link">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Instagram_logo_2016.svg/2048px-Instagram_logo_2016.svg.png" alt="Insta" class="insta-logo-small">
-                    SHRESTHA GUPTA
-                </a>
+                    <div style="position: relative;">
+                        <label for="password">Password</label>
+                        <div class="password-wrapper">
+                            <input type="password" id="password" required placeholder="Enter Password"
+                                style="padding-right: 40px; font-family: 'Verdana', sans-serif;">
+                            <div id="toggle-password" class="password-toggle-icon">
+                                <svg class="eye-show" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                                    <path
+                                        d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
+                                </svg>
+                                <svg class="eye-hide" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                                    style="display:none;">
+                                    <path
+                                        d="M11.83 9L15 12.17V12c0-1.66-1.34-3-3-3h-.17zm-4.3.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm-2.53 1.1l9.53 9.53 1.27-1.27-3.23-3.23c-1.39.73-2.95 1.12-4.57 1.12-5 0-9.27-3.11-11-7.5 1.24-3.14 3.75-5.6 6.84-6.84l-2.5-2.5 1.27-1.27.46.46L6.27 10.9zm13.23-4.4c1.65 1.38 3 3.14 3.76 5.5-1.73 4.39-6 7.5-11 7.5-1.04 0-2.05-.13-3.03-.38l2.25-2.25c.25.08.52.13.78.13 2.76 0 5-2.24 5-5 0-.26-.05-.53-.13-.78l2.25-2.25c.38.62.74 1.28 1.12 2.03z" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="text-align: right; display:flex; justify-content:space-between; margin-top:5px;">
+                        <span id="toggle-auth-btn" class="toggle-auth-link">Create New Account</span>
+                        <a href="mailto:kshaurya209@gmail.com?subject=CICR%20Password%20Reset"
+                            class="forgot-password-link">Forgot Password?</a>
+                    </div>
+                    <button type="submit" id="login-btn">LOGIN</button>
+                </form>
+                <p id="login-error"
+                    style="color:var(--color-danger); margin-top:15px; display:none; font-size:13px; font-weight:600;">
+                    ACCESS DENIED. INVALID CREDENTIALS.</p>
             </div>
-            <p style="margin-top: 30px; font-size: 10px; color: #444; letter-spacing: 2px;">© 2025 CICR MANAGEMENT SYSTEM | JIIT 128</p>
         </div>
 
-		<footer class="footer" role="contentinfo" style="padding: 20px; text-align: center; font-size: 13px; color: rgba(255,255,255,0.4); border-top: 1px solid #333; margin-top: 40px; background: rgba(0,0,0,0.4);">
-			<p id="attendance-taken-by">Attendance Recorded By: [None Selected]</p>
-		</footer>
-	</div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
-    <script src="script.js"></script>
+        <div id="app-content" style="display: none;">
+            <nav class="tab-navigation" role="tablist">
+                <a class="tab-link active" data-tab="attendance" role="tab" aria-selected="true">ATTENDANCE</a>
+                <a class="tab-link" data-tab="history" role="tab" aria-selected="false">LOGS</a>
+                <a class="tab-link" data-tab="reports" role="tab" aria-selected="false">ANALYTICS</a>
+                <a class="tab-link" data-tab="projects" role="tab" aria-selected="false">CICR SHELF</a>
+                <a class="tab-link" data-tab="equipment" role="tab" aria-selected="false">EQUIPMENT</a>
+                <a class="tab-link" data-tab="chat" role="tab" aria-selected="false">COMMUNITY</a>
+                <a class="tab-link" data-tab="scheduling" role="tab" aria-selected="false">SCHEDULING</a>
+                <a class="tab-link" data-tab="admin" role="tab" aria-selected="false">ADMIN</a>
+                <a class="tab-link" data-tab="about" role="tab" aria-selected="false">ABOUT CICR</a>
+                <a class="tab-link" data-tab="account" role="tab" aria-selected="false">MY ACCOUNT</a>
+                <a class="tab-link" data-tab="sync" role="tab" aria-selected="false">GROUP SYNC</a>
+                <a class="tab-link" data-tab="directory" role="tab" aria-selected="false">MEMBER BASE</a>
+            </nav>
+
+            <div class="main-content">
+                <section id="attendance-content" class="tab-content active" role="tabpanel">
+                    <div id="attendance-card" class="energy-frame">
+                        <h2 id="attendance-heading">Attendance Command Center</h2>
+
+                        <div id="attendance-hud" class="hud-dashboard">
+                            <div class="hud-stat-box">
+                                <span class="hud-stat-label">Present</span>
+                                <div class="hud-stat-value stat-present" id="total-present">0</div>
+                            </div>
+                            <div class="hud-stat-box">
+                                <span class="hud-stat-label">Absent</span>
+                                <div class="hud-stat-value stat-absent" id="total-absent">0</div>
+                            </div>
+                            <div class="hud-stat-box">
+                                <span class="hud-stat-label">Ratio</span>
+                                <div class="hud-stat-value stat-ratio" id="present-percentage">0.0%</div>
+                            </div>
+                            <button id="save-data-btn" class="status-button btn-save"
+                                style="margin:0; height: 40px;">SAVE LOG</button>
+                        </div>
+
+                        <div class="controls-container">
+                            <div>
+                                <label for="attendance-date">Session Date</label>
+                                <div class="date-picker-wrapper">
+                                    <input type="date" id="attendance-date" />
+                                    <button type="button" id="open-calendar-btn">📅</button>
+                                </div>
+                            </div>
+                            <div>
+                                <label for="attendance-taker-select">Recorded By</label>
+                                <select id="attendance-taker-select">
+                                    <option value="" disabled selected>-- Select Member --</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="year-select">Group Filter (Multiple)</label>
+                                <select id="year-select" multiple size="4"></select>
+                            </div>
+                            <div>
+                                <label for="attendance-subject">Meeting Topic</label>
+                                <select id="attendance-subject" onchange="handleTopicChange()">
+                                    <option value="Research Strategy" selected>Research Strategy Session</option>
+                                    <option value="Patent Review">Patent Review Committee</option>
+                                    <option value="Budget Planning">Quarterly Budget Planning</option>
+                                    <option value="Project Update">Project Progress Update</option>
+                                    <option value="Other">Other Meeting Topic</option>
+                                </select>
+                                <input type="text" id="custom-topic-input" placeholder="Enter Custom Topic"
+                                    style="display:none; margin-top:5px;" />
+                            </div>
+                            <div class="full-span">
+                                <label for="meeting-summary">Meeting Summary</label>
+                                <textarea id="meeting-summary" rows="2"
+                                    placeholder="Brief session summary..."></textarea>
+                            </div>
+                            <div class="full-span">
+                                <button id="create-gmeet-btn">Google Meet & Calendar Link</button>
+                            </div>
+                        </div>
+
+                        <div style="border-top: 1px solid #333; margin-top: 20px; padding-top: 10px;">
+                            <p class="current-class-display">ACTIVE SESSION: <strong id="current-subject-display"
+                                    style="color: var(--color-accent);">Research Strategy Session</strong></p>
+                            <ul id="attendance-list">
+                                <li>Select a Group Filter to load members.</li>
+                            </ul>
+                        </div>
+
+                        <div id="attendance-absent-summary" style="margin-top: 20px; font-size: 12px; color: #888;">
+                            <span style="color: var(--color-danger); font-weight:bold;">Absentees:</span>
+                            <span id="absent-list" style="color: #aaa;">-</span>
+                        </div>
+                    </div>
+                </section>
+                <section id="sync-content" class="tab-content" role="tabpanel">
+                    <div class="energy-frame">
+                        <h2>Group Discussion Sync</h2>
+                        <p style="font-size:12px; color:#888; margin-top:-10px;">Collaborate on specific projects with
+                            selective members.</p>
+
+                        <div class="controls-container">
+                            <div class="full-span">
+                                <label>Discussion Project Title</label>
+                                <input type="text" id="sync-project-title"
+                                    placeholder="e.g. Autonomous Drone Navigation">
+                            </div>
+                            <div>
+                                <label>Add Selective Member</label>
+                                <select id="sync-member-select">
+                                    <option value="" disabled selected>-- Select Member --</option>
+                                </select>
+                            </div>
+                            <div class="full-span">
+                                <label>Current Sync Group</label>
+                                <div id="sync-member-list"></div>
+                            </div>
+                            <div class="full-span">
+                                <button id="generate-sync-meet-btn" class="btn-save">GENERATE GMEET SYNC</button>
+                            </div>
+                        </div>
+
+                        <div class="personal-chat-window">
+                            <div id="sync-chat-header"
+                                style="padding:10px; border-bottom:1px solid #333; font-size:13px; font-weight:bold; color:var(--color-accent);">
+                                PROJECT CHAT: SELECT PROJECT ABOVE</div>
+                            <div id="sync-chat-messages" class="personal-chat-messages"></div>
+                            <div class="personal-chat-input-wrapper">
+                                <input type="text" id="sync-chat-input" placeholder="Type message to project group...">
+                                <button id="sync-chat-send-btn"
+                                    style="padding:0 15px; background:var(--color-accent); color:#000; border:none; margin-left:10px;">SEND</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section id="history-content" class="tab-content" role="tabpanel">
+                    <div id="history-card" class="energy-frame">
+                        <h2 id="history-heading">Meeting Logs</h2>
+                        <div class="history-controls" style="display: flex; gap: 10px; margin-bottom: 20px;">
+                            <button id="export-excel-btn" class="btn-utility btn-export-excel">Export CSV
+                                (Excel)</button>
+                            <button id="remove-selected-btn" class="btn-utility btn-remove-selected">Delete
+                                Selected</button>
+                            <button id="clear-history-btn" class="btn-utility btn-clear-history">Clear All</button>
+                        </div>
+                        <ul id="history-list" class="history-list" style="list-style: none; padding:0;">
+                            <li>Loading...</li>
+                        </ul>
+                    </div>
+                </section>
+
+                <section id="reports-content" class="tab-content" role="tabpanel">
+                    <div id="personal-report-card" class="energy-frame">
+                        <h2 id="report-heading">Analytics Leaderboard</h2>
+                        <div class="table-wrapper">
+                            <table id="personal-report-table">
+                                <thead>
+                                    <tr>
+                                        <th>MEMBER</th>
+                                        <th>UNIT</th>
+                                        <th>ATTENDANCE %</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="personal-report-body">
+                                    <tr>
+                                        <td colspan="3">Calculations Pending...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="projects-content" class="tab-content" role="tabpanel">
+                    <div class="energy-frame">
+                        <h2>Add to CICR Shelf</h2>
+                        <p style="font-size:12px; color:#888; margin-top:-10px;">Archive projects for junior members to
+                            reference.</p>
+                        <div class="controls-container">
+                            <div>
+                                <label for="project-name">Project Title</label>
+                                <input type="text" id="project-name" placeholder="Enter Project Title">
+                            </div>
+                            <div>
+                                <label for="project-type">Project Status</label>
+                                <select id="project-type">
+                                    <option value="completed">Completed (Archived)</option>
+                                    <option value="live">Live / Ongoing</option>
+                                </select>
+                            </div>
+                            <div class="full-span">
+                                <label for="project-members">Senior / Lead Member Name</label>
+                                <input type="text" id="project-members" placeholder="e.g. Kumar Shaurya (Lead)">
+                            </div>
+                            <div class="full-span">
+                                <label for="project-purpose">Purpose of Project</label>
+                                <textarea id="project-purpose" rows="2"
+                                    placeholder="Describe the goal/function of this project..."></textarea>
+                            </div>
+                            <div class="full-span">
+                                <label for="project-tech">Tech Stack (Tags)</label>
+                                <input type="text" id="project-tech"
+                                    placeholder="e.g. Arduino, Python, Raspberry Pi, HTML/CSS">
+                            </div>
+                            <div class="full-span">
+                                <label for="project-link">Github/Code Link (URL)</label>
+                                <input type="url" id="project-link" placeholder="https://github.com/...">
+                            </div>
+                            <div class="full-span">
+                                <label for="project-tinkercad" style="color: var(--color-tinker);">Tinkercad Simulation
+                                    Link</label>
+                                <input type="url" id="project-tinkercad" placeholder="https://www.tinkercad.com/..."
+                                    style="border-color: var(--color-tinker);">
+                            </div>
+                            <div>
+                                <label for="project-start">Start Date</label>
+                                <div class="date-picker-wrapper">
+                                    <input type="date" id="project-start">
+                                    <button type="button" id="open-calendar-start-btn">📅</button>
+                                </div>
+                            </div>
+                            <div>
+                                <label for="project-end">End Date</label>
+                                <div class="date-picker-wrapper">
+                                    <input type="date" id="project-end">
+                                    <button type="button" id="open-calendar-end-btn">📅</button>
+                                </div>
+                            </div>
+                            <div class="full-span">
+                                <button id="add-project-btn">Add to Shelf</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="energy-frame">
+                        <h2 style="color: var(--color-success);">CICR Project Shelf</h2>
+                        <div id="live-projects-list">
+                        </div>
+                    </div>
+                </section>
+
+                <section id="equipment-content" class="tab-content" role="tabpanel">
+                    <div class="energy-frame">
+                        <h2>Hardware Issuance Protocol</h2>
+                        <p style="font-size:12px; color:#888; margin-top:-10px;">Log equipment distribution for project
+                            work.</p>
+
+                        <div class="controls-container">
+                            <div>
+                                <label for="eq-name">Equipment Name</label>
+                                <input type="text" id="eq-name" placeholder="e.g. Arduino Uno, LiPo Battery">
+                            </div>
+                            <div>
+                                <label for="eq-member-select">Issued To (Member)</label>
+                                <select id="eq-member-select">
+                                    <option value="" disabled selected>-- Select Member --</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="eq-group">Project Group/Unit</label>
+                                <input type="text" id="eq-group" placeholder="e.g. Drone Team Alpha">
+                            </div>
+                            <div>
+                                <label>Issue Date</label>
+                                <input type="date" id="eq-issue-date">
+                            </div>
+                            <div>
+                                <label>Return Due Date</label>
+                                <input type="date" id="eq-return-date">
+                            </div>
+                            <div class="full-span">
+                                <button id="add-equipment-btn" class="btn-save">ISSUE EQUIPMENT</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="energy-frame">
+                        <h2 style="color: var(--color-tinker);">Active Hardware Logs</h2>
+                        <div class="table-wrapper" style="overflow-x:auto;">
+                            <table id="personal-report-table">
+                                <thead>
+                                    <tr>
+                                        <th>EQUIPMENT</th>
+                                        <th>ISSUED TO</th>
+                                        <th>DATES</th>
+                                        <th>STATUS</th>
+                                        <th>ACTION</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="equipment-log-body">
+                                    <tr>
+                                        <td colspan="5" style="text-align:center; opacity:0.5;">No active equipment
+                                            logs.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+                <section id="chat-content" class="tab-content" role="tabpanel">
+                    <div class="energy-frame chat-wrapper">
+                        <h2>Secure Community Channel</h2>
+                        <p style="font-size: 11px; color: #888; margin-top:-15px; margin-bottom: 20px;">* Note: This
+                            secure channel stores data locally. It is for internal logging purposes.</p>
+                        <div id="chat-display" class="chat-display">
+                        </div>
+                        <div class="chat-controls">
+                            <input type="text" id="chat-input" placeholder="Transmit message to channel...">
+                            <button id="chat-send-btn">SEND</button>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="scheduling-content" class="tab-content" role="tabpanel">
+                    <div id="scheduling-card" class="energy-frame">
+                        <h3>Email Scheduler</h3>
+                        <div class="scheduling-grid">
+                            <div>
+                                <label for="schedule-initiator-select">Sender</label>
+                                <select id="schedule-initiator-select">
+                                    <option value="" disabled selected>-- Select Sender --</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="schedule-recipient-select">Recipient</label>
+                                <select id="schedule-recipient-select">
+                                    <option value="" disabled selected>-- Select Recipient --</option>
+                                </select>
+                            </div>
+                            <div><label>Sender Email</label><input type="email" id="sender-email"
+                                    placeholder="sender@gmail.com"></div>
+                            <div><label>Recipient Email</label><input type="text" id="recipient-email"
+                                    placeholder="recipient@email.com"></div>
+                            <div class="full-span"><label>Subject</label><input type="text" id="schedule-subject"
+                                    placeholder="Meeting Subject"></div>
+                            <div>
+                                <label>Date</label>
+                                <div class="date-picker-wrapper">
+                                    <input type="date" id="schedule-date">
+                                    <button type="button" id="open-calendar-scheduler-btn">📅</button>
+                                </div>
+                            </div>
+                            <div><label>Time</label><input type="time" id="schedule-time" value="10:00"></div>
+                            <div>
+                                <label>Location Type</label>
+                                <select id="schedule-location-type">
+                                    <option value="Online">Online</option>
+                                    <option value="Offline">Offline</option>
+                                </select>
+                            </div>
+                            <div><label>Details</label><input type="text" id="schedule-location-details"
+                                    placeholder="Link or Room No"></div>
+                            <div class="full-span"><button id="schedule-meeting-btn">Generate & Send</button></div>
+                        </div>
+                        <h3>Unit / Group Management</h3>
+                        <div class="member-control-grid">
+                            <div class="full-span"><label>Add New Group</label><input type="text"
+                                    id="new-permanent-group" placeholder="e.g. Research Subunit Beta"></div>
+                            <div class="full-span" style="padding-top:5px;"><button id="add-permanent-group-btn">Add
+                                    Group</button></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="admin-content" class="tab-content" role="tabpanel">
+                    <div id="admin-tools-wrapper">
+                        <div id="member-management-card" class="energy-frame">
+                            <h3>User Database Management</h3>
+                            <p
+                                style="font-size:11px; color:var(--color-accent-dim); margin-top:-15px; margin-bottom:20px;">
+                                Onboarding a member will automatically generate a website registration invitation email.
+                            </p>
+                            <div class="member-control-grid">
+                                <div>
+                                    <label>Full Name</label>
+                                    <input type="text" id="new-member-name" placeholder="e.g. Anil Sharma">
+                                </div>
+                                <div>
+                                    <label>Official Email ID</label>
+                                    <input type="email" id="new-member-email" placeholder="member@gmail.com">
+                                </div>
+                                <div>
+                                    <label>Mobile No.</label>
+                                    <input type="tel" id="new-member-phone" placeholder="e.g. 9876543210"
+                                        maxlength="10">
+                                </div>
+                                <div>
+                                    <label>Assign Year</label>
+                                    <select id="new-member-year-select">
+                                        <option value="1st Year">1st Year</option>
+                                        <option value="2nd Year">2nd Year</option>
+                                        <option value="3rd Year">3rd Year</option>
+                                        <option value="4th Year">4th Year</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>Batch</label>
+                                    <input type="text" id="new-member-batch" placeholder="e.g. B14">
+                                </div>
+                                <div class="full-span">
+                                    <label>Assigned Domain / Unit</label>
+                                    <select id="new-member-group"></select>
+                                </div>
+                                <div class="full-span" id="custom-group-input-wrapper" style="display:none;">
+                                    <label>Custom Unit Name</label>
+                                    <input type="text" id="custom-group-input" placeholder="Enter custom domain">
+                                </div>
+
+                                <div style="grid-column: span 2; margin-top:10px;">
+                                    <button id="add-member-btn"
+                                        style="width:100%; background: var(--color-success); color: white;">ADD USER &
+                                        SEND INVITE</button>
+                                </div>
+
+                                <div class="member-control-group full-span"
+                                    style="margin-top:30px; border-top:1px solid #333; padding-top:20px;">
+                                    <label>Remove User</label>
+                                    <select id="remove-member-select"></select>
+                                </div>
+                                <div style="padding-top:15px;" class="full-span">
+                                    <button id="remove-member-btn">Remove User</button>
+                                </div>
+                            </div>
+
+                            <div class="member-control-grid"
+                                style="margin-top:30px; border-top:1px solid #333; padding-top:20px;">
+                                <div class="full-span">
+                                    <h3>Unit / Group Hierarchy Management</h3>
+                                    <label>Add New Permanent Group/Unit</label>
+                                    <div style="display:flex; gap:10px;">
+                                        <input type="text" id="new-permanent-group"
+                                            placeholder="e.g. Research Subunit Beta">
+                                        <button id="add-permanent-group-btn" style="width:150px;">Add Group</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="member-control-grid"
+                                style="margin-top:30px; border-top:1px solid #333; padding-top:20px;">
+                                <div class="full-span">
+                                    <h3 style="color:var(--color-danger);">System Security Credentials</h3>
+                                    <p style="font-size:11px; color:#888; margin-bottom:15px;">Update the Portal Master
+                                        Security PIN. Current PIN verification required.</p>
+
+                                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+                                        <div>
+                                            <label>Verify Current Master PIN</label>
+                                            <input type="password" id="current-security-pin-verify" maxlength="4"
+                                                placeholder="Current PIN">
+                                        </div>
+                                        <div>
+                                            <label>New Security PIN (4-Digits)</label>
+                                            <input type="password" id="new-security-pin" maxlength="4"
+                                                placeholder="New PIN">
+                                        </div>
+                                    </div>
+                                    <button id="update-pin-btn" class="btn-save"
+                                        style="margin-top:15px; width:100%;">AUTHORIZE & UPDATE PIN</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section id="directory-content" class="tab-content" role="tabpanel">
+                    <div class="energy-frame">
+                        <h2>CICR Member Directory</h2>
+                        <p style="font-size:12px; color:#888; margin-top:-10px; margin-bottom: 25px;">Verified Personnel
+                            Database</p>
+
+                        <div
+                            style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center;">
+                            <div style="position: relative; flex-grow: 1;">
+                                <input type="text" id="directory-search"
+                                    placeholder="Search by name, domain, or batch..."
+                                    style="width: 100%; border-radius: 20px; padding-left: 20px; border: 1px solid var(--color-accent-dim);">
+                                <span id="member-count-badge"
+                                    style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); font-size: 10px; background: var(--color-accent); color: #000; padding: 2px 8px; border-radius: 10px; font-weight: 800;">0</span>
+                            </div>
+                            <button id="export-directory-btn">Export Contacts (CSV)</button>
+                        </div>
+
+                        <div id="member-directory-grid"
+                            style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;">
+                        </div>
+                    </div>
+                </section>
+                <section id="about-content" class="tab-content" role="tabpanel">
+                    <div class="energy-frame">
+                        <div class="about-dashboard">
+
+                            <div class="about-info-box about-hero-box col-span-12">
+                                <h4>// 01. SYSTEM_IDENTITY::MATRIX</h4>
+                                <p style="font-size: 13px; color: #ccc; margin: 0;">
+                                    <strong
+                                        style="color:#fff; font-size:15px; display:block; margin-bottom:5px;">Creative
+                                        and Innovative Cell in Robotics (CICR)</strong>
+                                    <span style="color:var(--color-accent);">"The Robotics Hub of
+                                        JIIT-128"</span><br><br>
+                                    Officially designated as the primary technical hub for Sector 128 Campus, operating
+                                    under the <strong>Jaypee Youth Club (JYC)</strong>. A multidisciplinary innovation
+                                    society integrating software, AI, and electronics.
+                                </p>
+                            </div>
+
+                            <div class="col-span-8">
+                                <div class="about-info-box" style="margin-bottom: 20px;">
+                                    <h4>// 02. CORE_FUNCTIONS & DOMAINS</h4>
+                                    <table class="domain-table">
+                                        <tr>
+                                            <th width="30%">DOMAIN</th>
+                                            <th>FOCUS AREAS</th>
+                                        </tr>
+                                        <tr>
+                                            <td><span class="tech-badge">ROBOTICS</span></td>
+                                            <td>Embedded Systems, Arduino, IoT, PCB Design, Hardware Prototyping.</td>
+                                        </tr>
+                                        <tr>
+                                            <td><span class="tech-badge">SOFTWARE</span></td>
+                                            <td>AI/ML, Computer Vision, Data Science, Full-stack Web Dev, App Dev.</td>
+                                        </tr>
+                                    </table>
+
+                                    <div style="margin-top: 15px; padding-top:10px; border-top:1px solid #333;">
+                                        <strong style="color:#fff; font-size:11px; text-transform:uppercase;">Key Events
+                                            Protocol:</strong>
+                                        <div style="margin-top:5px; display:flex; gap:5px; flex-wrap:wrap;">
+                                            <span class="tech-badge"
+                                                style="border-color:var(--color-tinker); color:var(--color-tinker);">TechTonic
+                                                (Flagship)</span>
+                                            <span class="tech-badge">Circuit Rush</span>
+                                            <span class="tech-badge">Robo Soccer</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-span-4" style="display:flex; flex-direction:column; gap:20px;">
+                                <div class="about-info-box">
+                                    <h4>// 03. COMMAND_HIERARCHY</h4>
+                                    <ul style="list-style: none; padding: 0; font-size: 12px; color: #ccc;">
+                                        <li style="margin-bottom: 8px;"><span
+                                                style="color: var(--color-tinker);">■</span> <strong
+                                                style="color:#fff;">Heads (4th Yr)</strong><br>Strategy & Mentorship
+                                        </li>
+                                        <li style="margin-bottom: 8px;"><span
+                                                style="color: var(--color-accent);">■</span> <strong
+                                                style="color:#fff;">Coordinators (3rd Yr)</strong><br>Operations &
+                                            Events</li>
+                                        <li style="margin-bottom: 8px;"><span
+                                                style="color: var(--color-success);">■</span> <strong
+                                                style="color:#fff;">Core Team (2nd Yr)</strong><br>Project Execution
+                                        </li>
+                                        <li><span style="color: #888;">■</span> <strong style="color:#fff;">Volunteers
+                                                (1st Yr)</strong><br>Learning</li>
+                                    </ul>
+                                </div>
+
+                                <div class="connect-grid" style="grid-template-columns: 1fr;">
+                                    <a href="https://www.instagram.com/cicr_jiit?igsh=MWNib3pma2xiYXpqcQ=="
+                                        target="_blank" class="social-card">
+                                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Instagram_logo_2016.svg/2048px-Instagram_logo_2016.svg.png"
+                                            alt="Insta" class="social-icon-img" style="width:30px; height:30px;">
+                                        <span class="social-label">Instagram</span>
+                                    </a>
+                                    <a href="https://www.linkedin.com/company/cicrjiit128/" target="_blank"
+                                        class="social-card">
+                                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/LinkedIn_logo_initials.png/960px-LinkedIn_logo_initials.png"
+                                            alt="LinkedIn" class="social-icon-img" style="width:30px; height:30px;">
+                                        <span class="social-label">LinkedIn</span>
+                                    </a>
+                                    <a href="https://www.cicr.in/" target="_blank" class="social-card">
+                                        <img src="https://i.pinimg.com/736x/67/0e/af/670eaf4523e896c4e587bc2b87ab0f4a.jpg"
+                                            alt="Web" class="social-icon-img"
+                                            style="border-radius: 50%; width:30px; height:30px;">
+                                        <span class="social-label">Web Portal</span>
+                                    </a>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </section>
+
+                <section id="account-content" class="tab-content" role="tabpanel">
+                    <div class="energy-frame">
+                        <h2>My Profile</h2>
+                        <div class="profile-grid">
+                            <div class="full-span" style="text-align:center;">
+                                <div
+                                    style="width: 100px; height: 100px; margin: 0 auto 10px; border-radius:50%; border:2px solid var(--color-accent); overflow:hidden; position:relative;">
+                                    <div id="profile-preview"
+                                        style="width:100%; height:100%; background:#222; background-size:cover; background-position:center;">
+                                    </div>
+                                </div>
+                                <label for="profile-pic-input"
+                                    style="cursor:pointer; color:var(--color-accent); text-decoration:underline;">Upload
+                                    Photo</label>
+                                <input type="file" id="profile-pic-input" accept="image/*" style="display:none;">
+                            </div>
+
+                            <div>
+                                <label>User ID (Email/Phone)</label>
+                                <input type="text" id="profile-id" disabled style="opacity: 0.6;">
+                            </div>
+                            <div>
+                                <label>Full Name</label>
+                                <input type="text" id="profile-name">
+                            </div>
+                            <div>
+                                <label>Year</label>
+                                <select id="profile-year">
+                                    <option value="1st Year">1st Year</option>
+                                    <option value="2nd Year">2nd Year</option>
+                                    <option value="3rd Year">3rd Year</option>
+                                    <option value="4th Year">4th Year</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label>Batch</label>
+                                <input type="text" id="profile-batch">
+                            </div>
+                            <div class="full-span" style="margin-top: 10px;">
+                                <button id="update-profile-btn">Save Changes</button>
+                            </div>
+                            <div class="full-span"
+                                style="border-top: 1px solid #333; margin-top: 20px; padding-top: 20px;">
+                                <button id="logout-btn">LOGOUT</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div class="dev-footer">
+                <h3>SYSTEM DEVELOPERS</h3>
+                <div class="dev-container">
+                    <a href="https://www.instagram.com/iamshauryaaa.__?igsh=N3oyOWkxeXB5dHpw" target="_blank"
+                        class="dev-link">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Instagram_logo_2016.svg/2048px-Instagram_logo_2016.svg.png"
+                            alt="Insta" class="insta-logo-small">
+                        KUMAR SHAURYA
+                    </a>
+                    <a href="https://www.instagram.com/shreshtha8994?igsh=NTlsdmd3c21samtv" target="_blank"
+                        class="dev-link">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Instagram_logo_2016.svg/2048px-Instagram_logo_2016.svg.png"
+                            alt="Insta" class="insta-logo-small">
+                        SHRESTHA GUPTA
+                    </a>
+                </div>
+                <p style="margin-top: 30px; font-size: 10px; color: #444; letter-spacing: 2px;">© 2025 CICR MANAGEMENT
+                    SYSTEM | JIIT 128</p>
+            </div>
+
+            <footer class="footer" role="contentinfo"
+                style="padding: 20px; text-align: center; font-size: 13px; color: rgba(255,255,255,0.4); border-top: 1px solid #333; margin-top: 40px; background: rgba(0,0,0,0.4);">
+                <p id="attendance-taken-by">Attendance Recorded By: [None Selected]</p>
+            </footer>
+        </div>
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+        <script src="script.js"></script>
 </body>
+
 </html>
