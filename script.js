@@ -12,14 +12,27 @@ if (!supabase) console.log("Supabase SDK not loaded or config missing. Running i
 const USERNAME = "CICRMEETIN";
 const PASSWORD = "CICRMEET25";
 const SYSTEM_OWNER_EMAIL = "cicrofficial@gmail.com";
+// Fix: Use Safe Parse
 let GLOBAL_SECURITY_PIN = localStorage.getItem("cicr_security_pin") || "1407"; 
+
 let ALL_GROUPS = ["4th Year", "3rd Year", "2nd Year", "1st Year", "Software", "Robotics", "Core"];
 const DEFAULT_STUDENTS = [
-	"4th Year: Archit Jain (Core) [992100]", "3rd Year: Yasharth (Core) [992101]", "3rd Year: Dhruvi Gupta (Software) [992102]", "3rd Year: Aryan Varshney (Core) [992103]", "2nd Year: Aradhaya (Robotics) [992104]", "2nd Year: Aman (Core) [992105]",
+    "4th Year: Archit Jain (Core) [992100]", "3rd Year: Yasharth (Core) [992101]", "3rd Year: Dhruvi Gupta (Software) [992102]", "3rd Year: Aryan Varshney (Core) [992103]", "2nd Year: Aradhaya (Robotics) [992104]", "2nd Year: Aman (Core) [992105]",
     "1st Year: Divyam Jain (Software) [992106]", "1st Year: Bhuwan Dhanwani (Robotics) [992107]", "1st Year: Kartik Virmani (Software) [992108]", "1st Year: Kshitika Barnwal (Core) [992109]", "1st Year: Kumar Shaurya (Software) [992110]", "1st Year: Vishal Tomar (Robotics) [992111]"
 ];
 let h4_students = [];
 let attendanceState = {};
+
+// --- HELPER: SAFE JSON PARSE (PREVENTS CRASHES) ---
+function safeJSONParse(key, defaultValue) {
+    try {
+        const item = localStorage.getItem(key);
+        return item ? JSON.parse(item) : defaultValue;
+    } catch (e) {
+        console.warn(`Error parsing ${key}, resetting to default.`);
+        return defaultValue;
+    }
+}
 
 // VALIDATION HELPERS
 const validateEmail = (email) => {
@@ -38,16 +51,34 @@ const validateURL = (url) => {
 };
 
 const highlightError = (el) => {
-    el.classList.add('input-invalid');
-    setTimeout(() => el.classList.remove('input-invalid'), 3000);
+    if(el) {
+        el.classList.add('input-invalid');
+        setTimeout(() => el.classList.remove('input-invalid'), 3000);
+    }
 };
 
-// AUDIO ENGINE
+// AUDIO ENGINE (SAFE MODE)
 const AUDIO = {
     click: new Audio("https://www.soundjay.com/buttons/sounds/button-16.mp3"),
     success: new Audio("https://www.soundjay.com/buttons/sounds/button-09.mp3"),
     transition: new Audio("https://www.soundjay.com/misc/sounds/heartbeat-01a.mp3"),
-    play: function(key) { if(this[key]) { this[key].volume = 0.3; this[key].currentTime = 0; this[key].play().catch(()=>{}); } }
+    play: function(key) { 
+        try {
+            if(this[key]) { 
+                this[key].volume = 0.3; 
+                this[key].currentTime = 0; 
+                // Catch promise rejection if browser blocks autoplay
+                const playPromise = this[key].play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.log("Audio play blocked (harmless):", error);
+                    });
+                }
+            } 
+        } catch(e) {
+            console.log("Audio error (harmless):", e);
+        }
+    }
 };
 
 // DOM ELEMENTS
@@ -179,13 +210,14 @@ let generatedOTP = null;
 let isVerified = false;
 let isAdminUnlocked = false; 
 
-function getStoredUsers() { return JSON.parse(localStorage.getItem(USERS_KEY) || "{}"); }
+function getStoredUsers() { return safeJSONParse(USERS_KEY, {}); }
 function saveStoredUsers(users) { localStorage.setItem(USERS_KEY, JSON.stringify(users)); }
 
 function toggleAuthMode() {
     isRegistering = !isRegistering;
     AUDIO.play('click');
-    const forgotLink = document.getElementById('forgot-password-link');
+    // FIX: Corrected ID mismatch here
+    const forgotLink = document.getElementById('forgot-password-trigger');
     if (isRegistering) {
         authTitle.textContent = "NEW USER REGISTRATION";
         loginBtn.textContent = "REGISTER & LOGIN";
@@ -219,31 +251,35 @@ if(togglePasswordBtn) {
     });
 }
 
-sendOtpBtn.addEventListener('click', () => {
-    const contact = usernameInput.value;
-    if(!contact) { highlightError(usernameInput); alert("Enter Email/Phone first"); return; }
-    
-    if(!validateEmail(contact) && !validatePhone(contact)) {
-        highlightError(usernameInput);
-        alert("Please enter a valid Email Address or a 10-digit Mobile Number.");
-        return;
-    }
+if(sendOtpBtn) {
+    sendOtpBtn.addEventListener('click', () => {
+        const contact = usernameInput.value;
+        if(!contact) { highlightError(usernameInput); alert("Enter Email/Phone first"); return; }
+        
+        if(!validateEmail(contact) && !validatePhone(contact)) {
+            highlightError(usernameInput);
+            alert("Please enter a valid Email Address or a 10-digit Mobile Number.");
+            return;
+        }
 
-    generatedOTP = Math.floor(100000 + Math.random() * 900000);
-    alert(`[SIMULATION] Your OTP code is: ${generatedOTP}`);
-    sendOtpBtn.style.display = 'none';
-    otpInputWrapper.style.display = 'block';
-    otpStatus.textContent = "OTP Sent. Check your device.";
-});
+        generatedOTP = Math.floor(100000 + Math.random() * 900000);
+        alert(`[SIMULATION] Your OTP code is: ${generatedOTP}`);
+        sendOtpBtn.style.display = 'none';
+        otpInputWrapper.style.display = 'block';
+        otpStatus.textContent = "OTP Sent. Check your device.";
+    });
+}
 
-verifyOtpBtn.addEventListener('click', () => {
-    if(otpInput.value == generatedOTP) {
-        isVerified = true;
-        otpStatus.textContent = "VERIFIED ✓";
-        otpStatus.style.color = "var(--color-success)";
-        otpInputWrapper.style.display = 'none';
-    } else { alert("Incorrect OTP"); }
-});
+if(verifyOtpBtn) {
+    verifyOtpBtn.addEventListener('click', () => {
+        if(otpInput.value == generatedOTP) {
+            isVerified = true;
+            otpStatus.textContent = "VERIFIED ✓";
+            otpStatus.style.color = "var(--color-success)";
+            otpInputWrapper.style.display = 'none';
+        } else { alert("Incorrect OTP"); }
+    });
+}
 
 function loadUserProfile() {
     if (!currentUser) return;
@@ -280,11 +316,16 @@ function handleProfilePicUpload(event) {
 
 function operateGate(callback) {
     AUDIO.play('transition');
-    techGate.classList.add('active');
-    setTimeout(() => {
+    if(techGate) {
+        techGate.classList.add('active');
+        setTimeout(() => {
+            if(callback) callback();
+            setTimeout(() => { techGate.classList.remove('active'); }, 1000);
+        }, 1200);
+    } else {
+        // Fallback if gate element is missing
         if(callback) callback();
-        setTimeout(() => { techGate.classList.remove('active'); }, 1000);
-    }, 1200);
+    }
 }
 
 function updateProfile() {
@@ -307,33 +348,35 @@ function updateProfile() {
     });
 }
 
-updatePinBtn.addEventListener('click', () => {
-    const currentVerify = verifyPinInput.value.trim();
-    const newPin = newPinInput.value.trim();
+if(updatePinBtn) {
+    updatePinBtn.addEventListener('click', () => {
+        const currentVerify = verifyPinInput.value.trim();
+        const newPin = newPinInput.value.trim();
 
-    if(currentVerify !== GLOBAL_SECURITY_PIN) return alert("Verification Failed: Current Master PIN is incorrect.");
-    if(newPin.length !== 4 || isNaN(newPin)) return alert("PIN must be exactly 4 digits.");
-    
-    GLOBAL_SECURITY_PIN = newPin;
-    localStorage.setItem("cicr_security_pin", newPin);
-    
-    const sub = encodeURIComponent("SECURITY ALERT: System PIN Updated");
-    const body = encodeURIComponent(`The CICR Portal Security PIN has been updated.\nNew Master PIN: ${newPin}\nUpdated By Admin: ${currentUser ? currentUser.name : 'Unknown User'}\n\nThis is a system generated log.`);
-    window.location.href = `mailto:${SYSTEM_OWNER_EMAIL}?subject=${sub}&body=${body}`;
-    
-    verifyPinInput.value = "";
-    newPinInput.value = "";
-    showSuccessAnimation();
-    alert("System Master PIN Authorized and Updated. Alerts sent.");
-});
+        if(currentVerify !== GLOBAL_SECURITY_PIN) return alert("Verification Failed: Current Master PIN is incorrect.");
+        if(newPin.length !== 4 || isNaN(newPin)) return alert("PIN must be exactly 4 digits.");
+        
+        GLOBAL_SECURITY_PIN = newPin;
+        localStorage.setItem("cicr_security_pin", newPin);
+        
+        const sub = encodeURIComponent("SECURITY ALERT: System PIN Updated");
+        const body = encodeURIComponent(`The CICR Portal Security PIN has been updated.\nNew Master PIN: ${newPin}\nUpdated By Admin: ${currentUser ? currentUser.name : 'Unknown User'}\n\nThis is a system generated log.`);
+        window.location.href = `mailto:${SYSTEM_OWNER_EMAIL}?subject=${sub}&body=${body}`;
+        
+        verifyPinInput.value = "";
+        newPinInput.value = "";
+        showSuccessAnimation();
+        alert("System Master PIN Authorized and Updated. Alerts sent.");
+    });
+}
 
 function logout() {
     operateGate(() => {
         currentUser = null;
         isAdminUnlocked = false; 
-        userAvatarDisplay.style.display = 'none';
-        appContent.style.display = 'none';
-        loginScreen.style.display = 'block';
+        if(userAvatarDisplay) userAvatarDisplay.style.display = 'none';
+        if(appContent) appContent.style.display = 'none';
+        if(loginScreen) loginScreen.style.display = 'block';
         usernameInput.value = ''; passwordInput.value = '';
         if(isRegistering) toggleAuthMode();
     });
@@ -342,48 +385,53 @@ function logout() {
 function showSuccessAnimation() {
     AUDIO.play('success');
     const overlay = document.getElementById('action-success-overlay');
-    overlay.style.display = 'flex';
-    setTimeout(() => { overlay.style.display = 'none'; }, 2000); 
+    if(overlay) {
+        overlay.style.display = 'flex';
+        setTimeout(() => { overlay.style.display = 'none'; }, 2000);
+    }
 }
 
+// PARTICLES
 const canvas = document.getElementById('particles-canvas');
-const ctx = canvas.getContext('2d');
-let particles = [];
-function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
-class Particle {
-    constructor() {
-        this.x = Math.random() * canvas.width; this.y = Math.random() * canvas.height;
-        this.vx = (Math.random() - 0.5) * 1.5; this.vy = (Math.random() - 0.5) * 1.5;
-        this.size = Math.random() * 2 + 1; this.color = '#66fcf1';
-    }
-    update() {
-        this.x += this.vx; this.y += this.vy;
-        if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
-        if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
-    }
-    draw() { ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill(); }
-}
-function initParticles() {
-    particles = [];
-    const count = Math.floor(window.innerWidth / 15);
-    for (let i = 0; i < count; i++) particles.push(new Particle());
-}
-function animateParticles() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    for (let i = 0; i < particles.length; i++) {
-        particles[i].update(); particles[i].draw();
-        for (let j = i; j < particles.length; j++) {
-            const dx = particles[i].x - particles[j].x;
-            const dy = particles[i].y - particles[j].y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < 150) { ctx.strokeStyle = `rgba(69, 162, 158, ${1 - dist/150})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y); ctx.lineTo(particles[j].x, particles[j].y); ctx.stroke(); }
+if(canvas) {
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+    function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    class Particle {
+        constructor() {
+            this.x = Math.random() * canvas.width; this.y = Math.random() * canvas.height;
+            this.vx = (Math.random() - 0.5) * 1.5; this.vy = (Math.random() - 0.5) * 1.5;
+            this.size = Math.random() * 2 + 1; this.color = '#66fcf1';
         }
+        update() {
+            this.x += this.vx; this.y += this.vy;
+            if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+            if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+        }
+        draw() { ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill(); }
     }
-    requestAnimationFrame(animateParticles);
+    function initParticles() {
+        particles = [];
+        const count = Math.floor(window.innerWidth / 15);
+        for (let i = 0; i < count; i++) particles.push(new Particle());
+    }
+    function animateParticles() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (let i = 0; i < particles.length; i++) {
+            particles[i].update(); particles[i].draw();
+            for (let j = i; j < particles.length; j++) {
+                const dx = particles[i].x - particles[j].x;
+                const dy = particles[i].y - particles[j].y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < 150) { ctx.strokeStyle = `rgba(69, 162, 158, ${1 - dist/150})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y); ctx.lineTo(particles[j].x, particles[j].y); ctx.stroke(); }
+            }
+        }
+        requestAnimationFrame(animateParticles);
+    }
+    initParticles(); animateParticles();
 }
-initParticles(); animateParticles();
 
 // --- TAB LOGIC ---
 let pendingTabId = null; 
@@ -439,11 +487,11 @@ function verifySecurityPin() {
         securityPinInput.focus(); 
     }
 }
-unlockBtn.addEventListener('click', verifySecurityPin);
-securityCancel.addEventListener('click', () => { securityOverlay.style.display = 'none'; pendingTabId = null; pendingAction = null; });
-securityPinInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') verifySecurityPin(); });
+if(unlockBtn) unlockBtn.addEventListener('click', verifySecurityPin);
+if(securityCancel) securityCancel.addEventListener('click', () => { securityOverlay.style.display = 'none'; pendingTabId = null; pendingAction = null; });
+if(securityPinInput) securityPinInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') verifySecurityPin(); });
 
-function loadProjects() { return JSON.parse(localStorage.getItem("cicrProjects") || "[]"); }
+function loadProjects() { return safeJSONParse("cicrProjects", []); }
 function saveProject() {
     const name = projectNameInput.value.trim();
     const type = projectTypeSelect.value;
@@ -508,7 +556,7 @@ function saveEquipment() {
     const name = eqNameInput.value.trim(); const member = eqMemberSelect.value; const group = eqGroupInput.value.trim(); const issue = eqIssueDate.value; const ret = eqReturnDate.value;
     if (!name || !member || !issue) { alert("Please fill Equipment Name, Member, and Issue Date."); return; }
     operateGate(() => {
-        const logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]");
+        const logs = safeJSONParse("cicrEquipment", []);
         logs.unshift({ id: Date.now(), name, member: member.split(": ")[1] || member, group, issue, return: ret, status: "ISSUED" });
         localStorage.setItem("cicrEquipment", JSON.stringify(logs));
         showSuccessAnimation(); eqNameInput.value = ""; eqGroupInput.value = ""; eqMemberSelect.value = ""; renderEquipmentLogs();
@@ -516,7 +564,7 @@ function saveEquipment() {
 }
 
 window.sendEquipmentReminder = function(id) {
-    const logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]");
+    const logs = safeJSONParse("cicrEquipment", []);
     const log = logs.find(l => l.id === id);
     if (!log || !log.return) return alert("Error: No due date found for this item.");
     const users = getStoredUsers();
@@ -528,7 +576,7 @@ window.sendEquipmentReminder = function(id) {
 };
 
 function renderEquipmentLogs() {
-    const logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]"); 
+    const logs = safeJSONParse("cicrEquipment", []); 
     eqLogBody.innerHTML = "";
     if (logs.length === 0) { eqLogBody.innerHTML = '<tr><td colspan="5" style="text-align:center; opacity:0.5;">No active equipment logs.</td></tr>'; return; }
     logs.forEach(log => {
@@ -544,26 +592,26 @@ window.handleEqReturn = function(id) {
     securityPinInput.value = '';
     securityPinInput.focus();
     pendingAction = () => {
-        let logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]"); 
+        let logs = safeJSONParse("cicrEquipment", []); 
         const log = logs.find(l => l.id === id); 
         if(log) { log.status = "SUBMITTED"; localStorage.setItem("cicrEquipment", JSON.stringify(logs)); renderEquipmentLogs(); showSuccessAnimation(); }
     };
 };
-window.deleteEqLog = function(id) { if(!confirm("Delete log permanently?")) return; let logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]"); logs = logs.filter(l => l.id !== id); localStorage.setItem("cicrEquipment", JSON.stringify(logs)); renderEquipmentLogs(); };
+window.deleteEqLog = function(id) { if(!confirm("Delete log permanently?")) return; let logs = safeJSONParse("cicrEquipment", []); logs = logs.filter(l => l.id !== id); localStorage.setItem("cicrEquipment", JSON.stringify(logs)); renderEquipmentLogs(); };
 
 function loadChat() {
-    const chat = JSON.parse(localStorage.getItem("cicrChat") || "[]"); chatDisplay.innerHTML = chat.length ? "" : `<div class="chat-message msg-other"><span class="msg-meta">SYSTEM | NOW</span>Welcome to the Secure Channel.</div>`;
+    const chat = safeJSONParse("cicrChat", []); chatDisplay.innerHTML = chat.length ? "" : `<div class="chat-message msg-other"><span class="msg-meta">SYSTEM | NOW</span>Welcome to the Secure Channel.</div>`;
     chat.forEach(msg => { const div = document.createElement("div"); div.className = `chat-message ${msg.sender === (currentUser ? currentUser.name : 'ME') ? 'msg-self' : 'msg-other'}`; div.innerHTML = `<span class="msg-meta">${msg.sender} | ${msg.time}</span>${msg.text}`; chatDisplay.appendChild(div); });
 }
 function postMessage() {
     const text = chatInput.value.trim(); if(!text) return;
-    const chat = JSON.parse(localStorage.getItem("cicrChat") || "[]");
+    const chat = safeJSONParse("cicrChat", []);
     chat.push({ sender: currentUser ? currentUser.name : "ME", text: text, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) });
     if(chat.length > 50) chat.shift(); localStorage.setItem("cicrChat", JSON.stringify(chat)); chatInput.value = ""; loadChat(); scrollChat();
 }
 function scrollChat() { chatDisplay.scrollTop = chatDisplay.scrollHeight; }
 
-function loadGroups() { ALL_GROUPS = JSON.parse(localStorage.getItem("cicrGroups")) || ["4th Year", "3rd Year", "2nd Year", "1st Year", "Software", "Robotics", "Core"]; populateGroupSelects(); }
+function loadGroups() { ALL_GROUPS = safeJSONParse("cicrGroups", ["4th Year", "3rd Year", "2nd Year", "1st Year", "Software", "Robotics", "Core"]); populateGroupSelects(); }
 function saveGroups() { localStorage.setItem("cicrGroups", JSON.stringify(ALL_GROUPS)); }
 function addPermanentGroup(groupName) { 
     const trimmed = groupName.trim(); 
@@ -579,10 +627,10 @@ function removePermanentGroup() {
     }
 }
 
-function loadStudents() { h4_students = JSON.parse(localStorage.getItem("cicrMembers")) || DEFAULT_STUDENTS; refreshAllDropdowns(); }
+function loadStudents() { h4_students = safeJSONParse("cicrMembers", DEFAULT_STUDENTS); refreshAllDropdowns(); }
 function refreshAllDropdowns() { populateAllMembersDatalist(); populateSchedulingDropdowns(); populateProjectMembersDropdown(); }
 function saveStudents() { localStorage.setItem("cicrMembers", JSON.stringify(h4_students)); refreshAllDropdowns(); }
-function updateClock() { const now = new Date(); digitalClock.textContent = `${now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: '2-digit' })} | ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`; }
+function updateClock() { const now = new Date(); if(digitalClock) digitalClock.textContent = `${now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: '2-digit' })} | ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`; }
 
 function populateGroupSelects() {
     if (!ALL_GROUPS || !yearSelect) return;
@@ -684,14 +732,14 @@ function saveData() {
     const sel = Array.from(yearSelect.selectedOptions).map(o => o.value); if (!Object.keys(attendanceState).length || !sel.length || !attendanceDate.value || attendanceTakerSelect.value === "") return alert("Error: Incomplete data.");
     if (Object.values(attendanceState).filter(s => s === "MARK").length > 0 && !confirm("Commmit with unmarked users?")) return;
     operateGate(() => {
-        const h = JSON.parse(localStorage.getItem("attendanceHistory") || "[]");
+        const h = safeJSONParse("attendanceHistory", []);
         h.unshift({ id: Date.now(), date: attendanceDate.value, topic: getMeetingTopic(), group: sel.join(', '), taker: attendanceTakerSelect.value, summary: meetingSummaryInput.value.trim() || "No summary.", attendance: Object.keys(attendanceState).map(k => { return { name: k.split(": ")[1], group: k.split(": ")[0], status: attendanceState[k] }; }) });
         localStorage.setItem("attendanceHistory", JSON.stringify(h)); showSuccessAnimation(); renderStudents();
     });
 }
 
 function renderHistory() {
-    const h = JSON.parse(localStorage.getItem("attendanceHistory") || "[]"); historyListElement.innerHTML = h.length ? "" : '<li style="padding: 15px; opacity: 0.6;">No logs.</li>';
+    const h = safeJSONParse("attendanceHistory", []); historyListElement.innerHTML = h.length ? "" : '<li style="padding: 15px; opacity: 0.6;">No logs.</li>';
     removeSelectedBtn.style.display = h.length ? 'block' : 'none'; clearHistoryBtn.style.display = h.length ? 'block' : 'none';
     h.forEach(r => {
         const p = r.attendance.filter(a => a.status === "PRESENT").length; const t = r.attendance.filter(a => a.status !== "MARK").length;
@@ -715,7 +763,7 @@ function renderHistory() {
 }
 
 window.exportSingleLog = function(id) {
-    const h = JSON.parse(localStorage.getItem("attendanceHistory") || "[]");
+    const h = safeJSONParse("attendanceHistory", []);
     const r = h.find(item => item.id === id);
     if (!r) return;
     let csv = "data:text/csv;charset=utf-8,Date,Topic,Group,Recorder,Summary,Student Name,Student Group,Status\n";
@@ -724,10 +772,10 @@ window.exportSingleLog = function(id) {
 };
 
 function clearHistory() { if (confirm("Clear ALL?")) { localStorage.removeItem("attendanceHistory"); renderHistory(); } }
-function removeSelectedRecords() { const cb = document.querySelectorAll('.history-checkbox:checked'); if (!cb.length || !confirm("Delete selected?")) return; let h = JSON.parse(localStorage.getItem("attendanceHistory") || "[]"); const ids = Array.from(cb).map(c => parseInt(c.getAttribute('data-id'))); h = h.filter(r => !ids.includes(r.id)); localStorage.setItem("attendanceHistory", JSON.stringify(h)); renderHistory(); }
+function removeSelectedRecords() { const cb = document.querySelectorAll('.history-checkbox:checked'); if (!cb.length || !confirm("Delete selected?")) return; let h = safeJSONParse("attendanceHistory", []); const ids = Array.from(cb).map(c => parseInt(c.getAttribute('data-id'))); h = h.filter(r => !ids.includes(r.id)); localStorage.setItem("attendanceHistory", JSON.stringify(h)); renderHistory(); }
 
 function exportToCSV() { 
-    const h = JSON.parse(localStorage.getItem("attendanceHistory") || "[]"); 
+    const h = safeJSONParse("attendanceHistory", []); 
     if (!h.length) return alert("No logs available to export.");
     const selectedCheckboxes = document.querySelectorAll('.history-checkbox:checked');
     const selectedIds = Array.from(selectedCheckboxes).map(cb => parseInt(cb.getAttribute('data-id')));
@@ -739,7 +787,7 @@ function exportToCSV() {
 }
 
 function calculatePersonalReport() {
-    const h = JSON.parse(localStorage.getItem("attendanceHistory") || "[]"); const rd = {}; h4_students.forEach(m => rd[m] = { total: 0, attended: 0, group: m.split(": ")[0], name: m.split(": ")[1] });
+    const h = safeJSONParse("attendanceHistory", []); const rd = {}; h4_students.forEach(m => rd[m] = { total: 0, attended: 0, group: m.split(": ")[0], name: m.split(": ")[1] });
     h.forEach(r => r.attendance.forEach(a => { const k = `${a.group}: ${a.name}`; if (rd[k] && a.status !== "MARK") { rd[k].total++; if (a.status === "PRESENT") rd[k].attended++; } }));
     const generateRow = (d) => {
         const pct = d.total > 0 ? ((d.attended / d.total) * 100).toFixed(1) : 0;
@@ -780,15 +828,33 @@ function exportDirectoryCSV() {
 }
 
 function initializeListeners() {
-	setInterval(updateClock, 1000); updateClock();
-    splashScreen.addEventListener('click', () => { 
-        AUDIO.play('click');
-        splashScreen.style.opacity = '0'; 
-        setTimeout(() => { splashScreen.style.display = 'none'; operateGate(() => { loginScreen.style.display = 'block'; }); }, 500); 
-    });
-	toggleAuthBtn.addEventListener("click", toggleAuthMode);
+    setInterval(updateClock, 1000); updateClock();
+    
+    // --- SAFE SPLASH SCREEN LOGIC ---
+    if(splashScreen) {
+        // Fallback: If splash doesn't click, auto hide after 5 seconds of inactivity
+        setTimeout(() => {
+            if(splashScreen.style.display !== 'none') {
+                 console.log("Splash auto-dismissed due to timeout");
+                 splashScreen.click();
+            }
+        }, 5000);
+
+        splashScreen.addEventListener('click', () => { 
+            AUDIO.play('click');
+            splashScreen.style.opacity = '0'; 
+            setTimeout(() => { 
+                splashScreen.style.display = 'none'; 
+                operateGate(() => { 
+                    if(loginScreen) loginScreen.style.display = 'block'; 
+                }); 
+            }, 500); 
+        });
+    }
+
+    toggleAuthBtn.addEventListener("click", toggleAuthMode);
     loginForm.addEventListener("submit", (e) => {
-		e.preventDefault(); const user = usernameInput.value.trim(); const pass = passwordInput.value.trim(); if (!user || !pass) return;
+        e.preventDefault(); const user = usernameInput.value.trim(); const pass = passwordInput.value.trim(); if (!user || !pass) return;
         const u = getStoredUsers();
         if (isRegistering) {
             if(!isVerified) return alert("Verify OTP first."); const n = regNameInput.value.trim(); const b = regBatchInput.value.trim(); if (!n || !b) return;
@@ -802,49 +868,60 @@ function initializeListeners() {
                 else { alert("Invalid Credentials."); }
             });
         }
-	});
+    });
     function loginSuccess() {
         AUDIO.play('success');
-        loginScreen.style.display = 'none'; document.getElementById('success-screen').style.display = 'flex'; loadUserProfile();
-        setTimeout(() => { document.getElementById('success-screen').style.display = 'none'; appContent.style.display = 'block'; loadGroups(); loadStudents(); switchTab('attendance'); }, 2000);
+        if(loginScreen) loginScreen.style.display = 'none'; 
+        if(document.getElementById('success-screen')) document.getElementById('success-screen').style.display = 'flex'; 
+        loadUserProfile();
+        setTimeout(() => { 
+            if(document.getElementById('success-screen')) document.getElementById('success-screen').style.display = 'none'; 
+            if(appContent) appContent.style.display = 'block'; 
+            loadGroups(); loadStudents(); switchTab('attendance'); 
+        }, 2000);
     }
     tabLinks.forEach(link => link.addEventListener('click', (e) => switchTab(e.target.getAttribute('data-tab'))));
-	yearSelect.addEventListener("change", renderStudents);
-    attendanceDomainFilter.addEventListener("change", renderStudents);
-	saveBtn.addEventListener("click", saveData);
-    exportExcelBtn.addEventListener("click", exportToCSV);
-    clearHistoryBtn.addEventListener("click", clearHistory);
-    removeSelectedBtn.addEventListener("click", removeSelectedRecords);
-    addPermanentGroupBtn.addEventListener("click", () => { if(addPermanentGroup(newPermanentGroupInput.value)) { newPermanentGroupInput.value=""; } });
-    removePermanentGroupBtn.addEventListener("click", removePermanentGroup);
-	newMemberGroupSelect.addEventListener("change", handleGroupChange);
-	addMemberBtn.addEventListener("click", addMember);
-	removeMemberBtn.addEventListener("click", removeMember);
-    addProjectBtn.addEventListener("click", saveProject);
-    addEqBtn.addEventListener('click', saveEquipment);
-    chatSendBtn.addEventListener("click", postMessage);
-    updateProfileBtn.addEventListener("click", updateProfile);
-    logoutBtn.addEventListener("click", logout);
-    userAvatarDisplay.addEventListener("click", () => switchTab('account'));
-    profilePicInput.addEventListener('change', handleProfilePicUpload);
-    document.getElementById('directory-search').addEventListener('input', (e) => { const term = e.target.value.toLowerCase(); document.querySelectorAll('.member-card').forEach(card => { card.style.display = card.innerText.toLowerCase().includes(term) ? "block" : "none"; }); });
-    document.getElementById('export-directory-btn').addEventListener('click', exportDirectoryCSV);
-    document.getElementById('open-calendar-btn').addEventListener('click', () => attendanceDate.showPicker());
-    document.getElementById('open-calendar-start-btn').addEventListener('click', () => document.getElementById('project-start').showPicker());
-    document.getElementById('open-calendar-end-btn').addEventListener('click', () => document.getElementById('project-end').showPicker());
-    document.getElementById('open-calendar-scheduler-btn').addEventListener('click', () => scheduleDateInput.showPicker());
+    if(yearSelect) yearSelect.addEventListener("change", renderStudents);
+    if(attendanceDomainFilter) attendanceDomainFilter.addEventListener("change", renderStudents);
+    if(saveBtn) saveBtn.addEventListener("click", saveData);
+    if(exportExcelBtn) exportExcelBtn.addEventListener("click", exportToCSV);
+    if(clearHistoryBtn) clearHistoryBtn.addEventListener("click", clearHistory);
+    if(removeSelectedBtn) removeSelectedBtn.addEventListener("click", removeSelectedRecords);
+    if(addPermanentGroupBtn) addPermanentGroupBtn.addEventListener("click", () => { if(addPermanentGroup(newPermanentGroupInput.value)) { newPermanentGroupInput.value=""; } });
+    if(removePermanentGroupBtn) removePermanentGroupBtn.addEventListener("click", removePermanentGroup);
+    if(newMemberGroupSelect) newMemberGroupSelect.addEventListener("change", handleGroupChange);
+    if(addMemberBtn) addMemberBtn.addEventListener("click", addMember);
+    if(removeMemberBtn) removeMemberBtn.addEventListener("click", removeMember);
+    if(addProjectBtn) addProjectBtn.addEventListener("click", saveProject);
+    if(addEqBtn) addEqBtn.addEventListener('click', saveEquipment);
+    if(chatSendBtn) chatSendBtn.addEventListener("click", postMessage);
+    if(updateProfileBtn) updateProfileBtn.addEventListener("click", updateProfile);
+    if(logoutBtn) logoutBtn.addEventListener("click", logout);
+    if(userAvatarDisplay) userAvatarDisplay.addEventListener("click", () => switchTab('account'));
+    if(profilePicInput) profilePicInput.addEventListener('change', handleProfilePicUpload);
+    if(document.getElementById('directory-search')) document.getElementById('directory-search').addEventListener('input', (e) => { const term = e.target.value.toLowerCase(); document.querySelectorAll('.member-card').forEach(card => { card.style.display = card.innerText.toLowerCase().includes(term) ? "block" : "none"; }); });
+    if(document.getElementById('export-directory-btn')) document.getElementById('export-directory-btn').addEventListener('click', exportDirectoryCSV);
+    if(document.getElementById('open-calendar-btn')) document.getElementById('open-calendar-btn').addEventListener('click', () => attendanceDate.showPicker());
+    if(document.getElementById('open-calendar-start-btn')) document.getElementById('open-calendar-start-btn').addEventListener('click', () => document.getElementById('project-start').showPicker());
+    if(document.getElementById('open-calendar-end-btn')) document.getElementById('open-calendar-end-btn').addEventListener('click', () => document.getElementById('project-end').showPicker());
+    if(document.getElementById('open-calendar-scheduler-btn')) document.getElementById('open-calendar-scheduler-btn').addEventListener('click', () => scheduleDateInput.showPicker());
     document.addEventListener('change', (e) => { if (e.target.classList.contains('history-checkbox')) { const exportBtn = document.getElementById("export-excel-btn"); const selectedCount = document.querySelectorAll('.history-checkbox:checked').length; exportBtn.textContent = selectedCount > 0 ? `Export Selected (${selectedCount})` : "Export All CSV"; } });
-    scheduleRecipientSelect.addEventListener('change', () => {
-        const selectedOptions = Array.from(scheduleRecipientSelect.selectedOptions);
-        const emails = selectedOptions.map(opt => { const users = getStoredUsers(); const name = opt.value; const foundUser = Object.values(users).find(u => u.name === name); return foundUser ? foundUser.id : `${name.toLowerCase().replace(/\s/g, '.')}@jiit.ac.in`; });
-        recipientEmailInput.value = emails.join(', ');
-    });
-    scheduleMeetingBtn.addEventListener('click', () => {
-        const recipients = recipientEmailInput.value; const subject = encodeURIComponent(scheduleSubjectInput.value);
-        if(!recipients || !subject) return alert("Fill Subject and Recipients.");
-        const body = encodeURIComponent(`Hello,\n\nThis is an official meeting invitation from CICR.\n\nTopic: ${scheduleSubjectInput.value}\nDate: ${scheduleDateInput.value}\nTime: ${scheduleTimeInput.value}\nLocation: ${scheduleLocationTypeSelect.value} (${scheduleLocationDetailsInput.value})\n\nRegards,\n${scheduleInitiatorSelect.value}\nCICR Management`);
-        window.location.href = `mailto:${recipients}?subject=${subject}&body=${body}`; showSuccessAnimation();
-    });
+    
+    if(scheduleRecipientSelect) {
+        scheduleRecipientSelect.addEventListener('change', () => {
+            const selectedOptions = Array.from(scheduleRecipientSelect.selectedOptions);
+            const emails = selectedOptions.map(opt => { const users = getStoredUsers(); const name = opt.value; const foundUser = Object.values(users).find(u => u.name === name); return foundUser ? foundUser.id : `${name.toLowerCase().replace(/\s/g, '.')}@jiit.ac.in`; });
+            recipientEmailInput.value = emails.join(', ');
+        });
+    }
+    if(scheduleMeetingBtn) {
+        scheduleMeetingBtn.addEventListener('click', () => {
+            const recipients = recipientEmailInput.value; const subject = encodeURIComponent(scheduleSubjectInput.value);
+            if(!recipients || !subject) return alert("Fill Subject and Recipients.");
+            const body = encodeURIComponent(`Hello,\n\nThis is an official meeting invitation from CICR.\n\nTopic: ${scheduleSubjectInput.value}\nDate: ${scheduleDateInput.value}\nTime: ${scheduleTimeInput.value}\nLocation: ${scheduleLocationTypeSelect.value} (${scheduleLocationDetailsInput.value})\n\nRegards,\n${scheduleInitiatorSelect.value}\nCICR Management`);
+            window.location.href = `mailto:${recipients}?subject=${subject}&body=${body}`; showSuccessAnimation();
+        });
+    }
 
     // --- FORGOT PASSWORD LOGIC ---
     const forgotTrigger = document.getElementById('forgot-password-trigger');
