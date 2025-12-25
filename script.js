@@ -9,6 +9,13 @@ const DEFAULT_STUDENTS = [
 ];
 let h4_students = [];
 let attendanceState = {};
+// --- SUPABASE CONFIGURATION ---
+const SUPABASE_URL = 'YOUR_SUPABASE_URL_HERE'; 
+const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY_HERE';
+const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+// Console check
+if (!window.supabase) console.error("Supabase SDK not loaded. Check index.html");
 
 // VALIDATION HELPERS
 const validateEmail = (email) => {
@@ -1106,7 +1113,64 @@ function initializeListeners() {
         window.location.href = `mailto:${recipients}?subject=${subject}&body=${body}`;
         showSuccessAnimation();
     });
+    // --- FORGOT PASSWORD LOGIC ---
+    const forgotTrigger = document.getElementById('forgot-password-trigger');
+    const forgotSection = document.getElementById('forgot-password-section');
+    const backToLoginBtn = document.getElementById('back-to-login-btn');
+    const sendResetBtn = document.getElementById('send-reset-btn');
+    const resetEmailInput = document.getElementById('reset-email');
+    const resetStatus = document.getElementById('reset-status');
 
+    if(forgotTrigger) {
+        forgotTrigger.addEventListener('click', () => {
+            document.getElementById('login-form').style.display = 'none';
+            forgotSection.style.display = 'block';
+            authTitle.textContent = "ACCOUNT RECOVERY";
+        });
+    }
+
+    if(backToLoginBtn) {
+        backToLoginBtn.addEventListener('click', () => {
+            forgotSection.style.display = 'none';
+            document.getElementById('login-form').style.display = 'flex';
+            authTitle.textContent = "CICR MEMBER ACCESS";
+            resetStatus.textContent = "";
+        });
+    }
+
+    if(sendResetBtn) {
+        sendResetBtn.addEventListener('click', async () => {
+            const email = resetEmailInput.value.trim();
+            if(!validateEmail(email)) return alert("Please enter a valid email.");
+            
+            sendResetBtn.textContent = "SENDING...";
+            sendResetBtn.disabled = true;
+
+            // SUPABASE PASSWORD RESET
+            if (supabase) {
+                const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+                    redirectTo: window.location.href, // Redirects back here after clicking email link
+                });
+
+                if (error) {
+                    resetStatus.textContent = "Error: " + error.message;
+                    resetStatus.style.color = "var(--color-danger)";
+                } else {
+                    resetStatus.textContent = "Reset link sent! Check your email.";
+                    resetStatus.style.color = "var(--color-success)";
+                }
+            } else {
+                // Fallback for simulation if keys aren't set yet
+                setTimeout(() => {
+                    resetStatus.textContent = "[SIMULATION] Reset link sent to " + email;
+                    resetStatus.style.color = "var(--color-accent)";
+                }, 1000);
+            }
+
+            sendResetBtn.textContent = "SEND RESET LINK";
+            sendResetBtn.disabled = false;
+        });
+    }
     loadGroups(); loadStudents();
 }
 initializeListeners();
