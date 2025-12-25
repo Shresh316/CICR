@@ -10,8 +10,8 @@ const DEFAULT_STUDENTS = [
 let h4_students = [];
 let attendanceState = {};
 // --- SUPABASE CONFIGURATION ---
-const SUPABASE_URL = 'YOUR_SUPABASE_URL_HERE'; 
-const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY_HERE';
+const SUPABASE_URL = 'https://euesehkwdmoghulxtbqb.supabase.co'; 
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1ZXNlaGt3ZG1vZ2h1bHh0YnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY2ODU0MDUsImV4cCI6MjA4MjI2MTQwNX0.qaktQnej49v2g2RBYyggWYrb8KGyM3YNC7yWl1yr4yo';
 const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
 // Console check
