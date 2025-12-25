@@ -12,7 +12,79 @@
 
 </head>
 <body>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<div id="login-form-card" class="energy-frame">
+    <img src="https://i.pinimg.com/736x/67/0e/af/670eaf4523e896c4e587bc2b87ab0f4a.jpg" alt="CICR Login Logo" class="login-logo-img">
+    
+    <h2 id="auth-title">CICR MEMBER ACCESS</h2>
+    
+    <form id="login-form">
+        <div>
+            <label for="username" id="label-user">Email or Phone No.</label>
+            <input type="text" id="username" required placeholder="Enter Email/Phone (or Master ID)">
+        </div>
+        
+        <div id="registration-fields">
+            <div id="otp-section">
+                <label style="color:var(--color-accent);">VERIFICATION REQUIRED</label>
+                <button type="button" id="send-otp-btn" style="width:100%;">SEND OTP TO CONTACT</button>
+                <div id="otp-input-wrapper">
+                    <input type="text" id="otp-input" placeholder="Enter 6-Digit Code" style="text-align:center; letter-spacing:5px;">
+                    <button type="button" id="verify-otp-btn" style="width:100%; margin-top:5px;">VERIFY CODE</button>
+                </div>
+                <p id="otp-status"></p>
+            </div>
 
+            <div style="margin-bottom: 20px;">
+                <label for="reg-name">Full Name</label>
+                <input type="text" id="reg-name" placeholder="Your Name">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label for="reg-year">Year</label>
+                <select id="reg-year">
+                    <option value="1st Year">1st Year</option>
+                    <option value="2nd Year">2nd Year</option>
+                    <option value="3rd Year">3rd Year</option>
+                    <option value="4th Year">4th Year</option>
+                </select>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label for="reg-batch">Batch</label>
+                <input type="text" id="reg-batch" placeholder="e.g. B14">
+            </div>
+        </div>
+
+        <div style="position: relative;">
+            <label for="password">Password</label>
+            <div class="password-wrapper">
+                <input type="password" id="password" required placeholder="Enter Password" style="padding-right: 40px; font-family: 'Verdana', sans-serif;">
+                <div id="toggle-password" class="password-toggle-icon">
+                    <svg class="eye-show" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                    <svg class="eye-hide" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="display:none;" width="20" height="20" fill="white"><path d="M11.83 9L15 12.17V12c0-1.66-1.34-3-3-3h-.17zm-4.3.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm-2.53 1.1l9.53 9.53 1.27-1.27-3.23-3.23c-1.39.73-2.95 1.12-4.57 1.12-5 0-9.27-3.11-11-7.5 1.24-3.14 3.75-5.6 6.84-6.84l-2.5-2.5 1.27-1.27.46.46L6.27 10.9zm13.23-4.4c1.65 1.38 3 3.14 3.76 5.5-1.73 4.39-6 7.5-11 7.5-1.04 0-2.05-.13-3.03-.38l2.25-2.25c.25.08.52.13.78.13 2.76 0 5-2.24 5-5 0-.26-.05-.53-.13-.78l2.25-2.25c.38.62.74 1.28 1.12 2.03z"/></svg>
+                </div>
+            </div>
+        </div>
+        <div style="text-align: right; display:flex; justify-content:space-between; margin-top:5px;">
+            <span id="toggle-auth-btn" class="toggle-auth-link">Create New Account</span>
+            <span class="forgot-password-link" id="forgot-password-trigger" style="cursor:pointer; text-decoration: underline;">Forgot Password?</span>
+        </div>
+        <button type="submit" id="login-btn">LOGIN</button>
+    </form>
+
+    <div id="forgot-password-section" style="display: none;">
+        <h3 style="color:var(--color-accent-dim); margin-bottom:10px;">RESET PASSWORD</h3>
+        <p style="font-size:12px; color:#ccc; margin-bottom:15px;">Enter your registered email address. We will send you a secure password reset link.</p>
+        <div>
+            <label for="reset-email">Registered Email</label>
+            <input type="email" id="reset-email" placeholder="name@example.com">
+        </div>
+        <button id="send-reset-btn" style="width:100%; margin-top:15px;">SEND RESET LINK</button>
+        <button id="back-to-login-btn" style="width:100%; margin-top:10px; background:transparent; border:1px solid #333; color:#888;">CANCEL</button>
+        <p id="reset-status" style="margin-top:10px; font-size:12px;"></p>
+    </div>
+
+    <p id="login-error" style="color:var(--color-danger); margin-top:15px; display:none; font-size:13px; font-weight:600;">ACCESS DENIED. INVALID CREDENTIALS.</p>
+</div>
 <div id="tech-gate">
     <div class="gate-left"></div>
     <div class="gate-right"></div>
@@ -74,64 +146,78 @@
 	</div>
 
 	<div id="login-screen" style="display: none;">
-		<div id="login-form-card" class="energy-frame">
-            <img src="https://i.pinimg.com/736x/67/0e/af/670eaf4523e896c4e587bc2b87ab0f4a.jpg" alt="CICR Login Logo" class="login-logo-img">
-            
-			<h2 id="auth-title">CICR MEMBER ACCESS</h2>
-			<form id="login-form">
-				<div>
-					<label for="username" id="label-user">Email or Phone No.</label>
-					<input type="text" id="username" required placeholder="Enter Email/Phone (or Master ID)">
-				</div>
-                
-                <div id="registration-fields">
-                    <div id="otp-section">
-                        <label style="color:var(--color-accent);">VERIFICATION REQUIRED</label>
-                        <button type="button" id="send-otp-btn" style="width:100%;">SEND OTP TO CONTACT</button>
-                        <div id="otp-input-wrapper">
-                            <input type="text" id="otp-input" placeholder="Enter 6-Digit Code" style="text-align:center; letter-spacing:5px;">
-                            <button type="button" id="verify-otp-btn" style="width:100%; margin-top:5px;">VERIFY CODE</button>
-                        </div>
-                        <p id="otp-status"></p>
-                    </div>
-
-                    <div style="margin-bottom: 20px;">
-                        <label for="reg-name">Full Name</label>
-                        <input type="text" id="reg-name" placeholder="Your Name">
-                    </div>
-                    <div style="margin-bottom: 20px;">
-                        <label for="reg-year">Year</label>
-                        <select id="reg-year">
-                            <option value="1st Year">1st Year</option>
-                            <option value="2nd Year">2nd Year</option>
-                            <option value="3rd Year">3rd Year</option>
-                            <option value="4th Year">4th Year</option>
-                        </select>
-                    </div>
-                    <div style="margin-bottom: 20px;">
-                        <label for="reg-batch">Batch</label>
-                        <input type="text" id="reg-batch" placeholder="e.g. B14">
-                    </div>
+<div id="login-form-card" class="energy-frame">
+    <img src="https://i.pinimg.com/736x/67/0e/af/670eaf4523e896c4e587bc2b87ab0f4a.jpg" alt="CICR Login Logo" class="login-logo-img">
+    
+    <h2 id="auth-title">CICR MEMBER ACCESS</h2>
+    
+    <form id="login-form">
+        <div>
+            <label for="username" id="label-user">Email or Phone No.</label>
+            <input type="text" id="username" required placeholder="Enter Email/Phone (or Master ID)">
+        </div>
+        
+        <div id="registration-fields">
+            <div id="otp-section">
+                <label style="color:var(--color-accent);">VERIFICATION REQUIRED</label>
+                <button type="button" id="send-otp-btn" style="width:100%;">SEND OTP TO CONTACT</button>
+                <div id="otp-input-wrapper">
+                    <input type="text" id="otp-input" placeholder="Enter 6-Digit Code" style="text-align:center; letter-spacing:5px;">
+                    <button type="button" id="verify-otp-btn" style="width:100%; margin-top:5px;">VERIFY CODE</button>
                 </div>
+                <p id="otp-status"></p>
+            </div>
 
-				<div style="position: relative;">
-					<label for="password">Password</label>
-                    <div class="password-wrapper">
-					    <input type="password" id="password" required placeholder="Enter Password" style="padding-right: 40px; font-family: 'Verdana', sans-serif;">
-                        <div id="toggle-password" class="password-toggle-icon">
-                            <svg class="eye-show" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
-                            <svg class="eye-hide" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="display:none;"><path d="M11.83 9L15 12.17V12c0-1.66-1.34-3-3-3h-.17zm-4.3.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm-2.53 1.1l9.53 9.53 1.27-1.27-3.23-3.23c-1.39.73-2.95 1.12-4.57 1.12-5 0-9.27-3.11-11-7.5 1.24-3.14 3.75-5.6 6.84-6.84l-2.5-2.5 1.27-1.27.46.46L6.27 10.9zm13.23-4.4c1.65 1.38 3 3.14 3.76 5.5-1.73 4.39-6 7.5-11 7.5-1.04 0-2.05-.13-3.03-.38l2.25-2.25c.25.08.52.13.78.13 2.76 0 5-2.24 5-5 0-.26-.05-.53-.13-.78l2.25-2.25c.38.62.74 1.28 1.12 2.03z"/></svg>
-                        </div>
-                    </div>
-				</div>
-                <div style="text-align: right; display:flex; justify-content:space-between; margin-top:5px;">
-                    <span id="toggle-auth-btn" class="toggle-auth-link">Create New Account</span>
-				    <a href="mailto:cicrofficial@gmail.com?subject=CICR%20Password%20Reset" class="forgot-password-link" id="forgot-password-link">Forgot Password?</a>
+            <div style="margin-bottom: 20px;">
+                <label for="reg-name">Full Name</label>
+                <input type="text" id="reg-name" placeholder="Your Name">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label for="reg-year">Year</label>
+                <select id="reg-year">
+                    <option value="1st Year">1st Year</option>
+                    <option value="2nd Year">2nd Year</option>
+                    <option value="3rd Year">3rd Year</option>
+                    <option value="4th Year">4th Year</option>
+                </select>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label for="reg-batch">Batch</label>
+                <input type="text" id="reg-batch" placeholder="e.g. B14">
+            </div>
+        </div>
+
+        <div style="position: relative;">
+            <label for="password">Password</label>
+            <div class="password-wrapper">
+                <input type="password" id="password" required placeholder="Enter Password" style="padding-right: 40px; font-family: 'Verdana', sans-serif;">
+                <div id="toggle-password" class="password-toggle-icon">
+                    <svg class="eye-show" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                    <svg class="eye-hide" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="display:none;" width="20" height="20" fill="white"><path d="M11.83 9L15 12.17V12c0-1.66-1.34-3-3-3h-.17zm-4.3.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm-2.53 1.1l9.53 9.53 1.27-1.27-3.23-3.23c-1.39.73-2.95 1.12-4.57 1.12-5 0-9.27-3.11-11-7.5 1.24-3.14 3.75-5.6 6.84-6.84l-2.5-2.5 1.27-1.27.46.46L6.27 10.9zm13.23-4.4c1.65 1.38 3 3.14 3.76 5.5-1.73 4.39-6 7.5-11 7.5-1.04 0-2.05-.13-3.03-.38l2.25-2.25c.25.08.52.13.78.13 2.76 0 5-2.24 5-5 0-.26-.05-.53-.13-.78l2.25-2.25c.38.62.74 1.28 1.12 2.03z"/></svg>
                 </div>
-				<button type="submit" id="login-btn">LOGIN</button>
-			</form>
-			<p id="login-error" style="color:var(--color-danger); margin-top:15px; display:none; font-size:13px; font-weight:600;">ACCESS DENIED. INVALID CREDENTIALS.</p>
-		</div>
+            </div>
+        </div>
+        <div style="text-align: right; display:flex; justify-content:space-between; margin-top:5px;">
+            <span id="toggle-auth-btn" class="toggle-auth-link">Create New Account</span>
+            <span class="forgot-password-link" id="forgot-password-trigger" style="cursor:pointer; text-decoration: underline;">Forgot Password?</span>
+        </div>
+        <button type="submit" id="login-btn">LOGIN</button>
+    </form>
+
+    <div id="forgot-password-section" style="display: none;">
+        <h3 style="color:var(--color-accent-dim); margin-bottom:10px;">RESET PASSWORD</h3>
+        <p style="font-size:12px; color:#ccc; margin-bottom:15px;">Enter your registered email address. We will send you a secure password reset link.</p>
+        <div>
+            <label for="reset-email">Registered Email</label>
+            <input type="email" id="reset-email" placeholder="name@example.com">
+        </div>
+        <button id="send-reset-btn" style="width:100%; margin-top:15px;">SEND RESET LINK</button>
+        <button id="back-to-login-btn" style="width:100%; margin-top:10px; background:transparent; border:1px solid #333; color:#888;">CANCEL</button>
+        <p id="reset-status" style="margin-top:10px; font-size:12px;"></p>
+    </div>
+
+    <p id="login-error" style="color:var(--color-danger); margin-top:15px; display:none; font-size:13px; font-weight:600;">ACCESS DENIED. INVALID CREDENTIALS.</p>
+</div>
 	</div>
     
 	<div id="app-content" style="display: none;">
