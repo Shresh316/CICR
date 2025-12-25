@@ -1,41 +1,45 @@
-// --- SUPABASE CONFIGURATION ---
-const SUPABASE_URL = "https://qjpmsepigcjqkptfptnt.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqcG1zZXBpZ2NqcWtwdGZwdG50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwNjA1NTIsImV4cCI6MjA4MTYzNjU1Mn0.VsVa4ZwYDz9YTWiVjpf96LECjRbm0Jshs4AEys_eHRQ";
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-// --- GLOBAL VARIABLES ---
+const USERNAME = "CICRMEETIN";
+const PASSWORD = "CICRMEET25";
 const SYSTEM_OWNER_EMAIL = "cicrofficial@gmail.com";
-let GLOBAL_PIN = "1407"; // Fallback, will be overwritten by fetchAdminPin()
-let currentUser = null;
-let isRegistering = false;
-let isVerified = false;
-let isAdminUnlocked = false;
-let generatedOTP = null;
+let GLOBAL_SECURITY_PIN = localStorage.getItem("cicr_security_pin") || "1407"; 
+let ALL_GROUPS = ["4th Year", "3rd Year", "2nd Year", "1st Year", "Software", "Robotics", "Core"];
+const DEFAULT_STUDENTS = [
+	"4th Year: Archit Jain (Core) [992100]", "3rd Year: Yasharth (Core) [992101]", "3rd Year: Dhruvi Gupta (Software) [992102]", "3rd Year: Aryan Varshney (Core) [992103]", "2nd Year: Aradhaya (Robotics) [992104]", "2nd Year: Aman (Core) [992105]",
+    "1st Year: Divyam Jain (Software) [992106]", "1st Year: Bhuwan Dhanwani (Robotics) [992107]", "1st Year: Kartik Virmani (Software) [992108]", "1st Year: Kshitika Barnwal (Core) [992109]", "1st Year: Kumar Shaurya (Software) [992110]", "1st Year: Vishal Tomar (Robotics) [992111]"
+];
+let h4_students = [];
+let attendanceState = {};
 
-// Data Stores
-let allMembers = []; // Objects from DB: {id, full_name, year, batch...}
-let h4_students = []; // Strings for legacy compatibility: "Group: Name"
-let ALL_GROUPS = []; // Loaded from DB
-let selectedSyncMembers = []; // For Sync Tab
-let currentSyncGroup = null; // Active Sync Session
-let pendingTabId = null; // For Security Redirects
-let pendingAction = null; // For Secure Actions (like Equipment Return)
+// VALIDATION HELPERS
+const validateEmail = (email) => {
+    return String(email)
+        .toLowerCase()
+        .match(/^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/);
+};
+const validatePhone = (phone) => {
+    return String(phone).match(/^\d{10}$/);
+};
+const validateURL = (url) => {
+    try { 
+        const u = new URL(url); 
+        return u.protocol === "http:" || u.protocol === "https:"; 
+    } catch (_) { return false; }
+};
 
-// --- AUDIO ENGINE (RESTORED) ---
+const highlightError = (el) => {
+    el.classList.add('input-invalid');
+    setTimeout(() => el.classList.remove('input-invalid'), 3000);
+};
+
+// AUDIO ENGINE
 const AUDIO = {
     click: new Audio("https://www.soundjay.com/buttons/sounds/button-16.mp3"),
     success: new Audio("https://www.soundjay.com/buttons/sounds/button-09.mp3"),
     transition: new Audio("https://www.soundjay.com/misc/sounds/heartbeat-01a.mp3"),
-    play: function(key) { 
-        if(this[key]) { 
-            this[key].volume = 0.3; 
-            this[key].currentTime = 0; 
-            this[key].play().catch(()=>{}); 
-        } 
-    }
+    play: function(key) { if(this[key]) { this[key].volume = 0.3; this[key].currentTime = 0; this[key].play().catch(()=>{}); } }
 };
 
-// --- DOM ELEMENTS ---
+// DOM ELEMENTS
 const splashScreen = document.getElementById("splash-screen");
 const attendanceList = document.getElementById("attendance-list");
 const subjectSelector = document.getElementById("attendance-subject");
@@ -43,13 +47,13 @@ const totalPresent = document.getElementById("total-present");
 const totalAbsent = document.getElementById("total-absent");
 const presentPercentage = document.getElementById("present-percentage");
 const absentListElement = document.getElementById("absent-list");
-const attendanceTakenBy = document.getElementById("attendance-taken-by");
 const historyListElement = document.getElementById("history-list");
 const clearHistoryBtn = document.getElementById("clear-history-btn");
 const exportExcelBtn = document.getElementById("export-excel-btn");
 const attendanceTakerSelect = document.getElementById("attendance-taker-select");
 const customTopicInput = document.getElementById("custom-topic-input");
 const yearSelect = document.getElementById("year-select");
+const attendanceDomainFilter = document.getElementById("attendance-domain-filter");
 const saveBtn = document.getElementById("save-data-btn");
 const attendanceDate = document.getElementById("attendance-date");
 const loginForm = document.getElementById("login-form");
@@ -62,13 +66,23 @@ const createGMeetBtn = document.getElementById("create-gmeet-btn");
 const meetingSummaryInput = document.getElementById("meeting-summary");
 const removeSelectedBtn = document.getElementById("remove-selected-btn");
 const digitalClock = document.getElementById("digital-clock");
-const personalReportBody = document.getElementById("personal-report-body");
+const allMembersDatalist = document.getElementById("all-members-datalist");
+
+// ADMIN ONBOARDING ELEMENTS
 const newMemberNameInput = document.getElementById("new-member-name");
+const newMemberEmailInput = document.getElementById("new-member-email");
+const newMemberPhoneInput = document.getElementById("new-member-phone");
+const newMemberYearSelect = document.getElementById("new-member-year-select");
+const newMemberBatchInput = document.getElementById("new-member-batch");
+const newMemberEnrollmentInput = document.getElementById("new-member-enrollment");
 const newMemberGroupSelect = document.getElementById("new-member-group");
 const customGroupInput = document.getElementById("custom-group-input");
 const addMemberBtn = document.getElementById("add-member-btn");
 const removeMemberSelect = document.getElementById("remove-member-select");
 const removeMemberBtn = document.getElementById("remove-member-btn");
+const removePermanentGroupSelect = document.getElementById("remove-permanent-group-select");
+const removePermanentGroupBtn = document.getElementById("remove-permanent-group-btn");
+
 const scheduleInitiatorSelect = document.getElementById("schedule-initiator-select");
 const scheduleRecipientSelect = document.getElementById("schedule-recipient-select");
 const senderEmailInput = document.getElementById("sender-email");
@@ -87,13 +101,12 @@ const tabContents = document.querySelectorAll('.tab-content');
 // PROJECT ELEMENTS
 const projectNameInput = document.getElementById("project-name");
 const projectTypeSelect = document.getElementById("project-type");
-const projectMembersInput = document.getElementById("project-members");
-const projectLinkInput = document.getElementById("project-link");
+const projectMembersSelect = document.getElementById("project-members-select"); // Replaced lead select
+const projectLinksInput = document.getElementById("project-links");
 const projectStartInput = document.getElementById("project-start");
 const projectEndInput = document.getElementById("project-end");
 const projectPurposeInput = document.getElementById("project-purpose");
 const projectTechInput = document.getElementById("project-tech");
-const projectTinkercadInput = document.getElementById("project-tinkercad");
 const addProjectBtn = document.getElementById("add-project-btn");
 const liveProjectsList = document.getElementById("live-projects-list");
 
@@ -106,7 +119,6 @@ const eqReturnDate = document.getElementById('eq-return-date');
 const addEqBtn = document.getElementById('add-equipment-btn');
 const eqLogBody = document.getElementById('equipment-log-body');
 
-// CHAT & PROFILE ELEMENTS
 const chatDisplay = document.getElementById('chat-display');
 const chatInput = document.getElementById('chat-input');
 const chatSendBtn = document.getElementById('chat-send-btn');
@@ -119,10 +131,11 @@ const regYearSelect = document.getElementById('reg-year');
 const regBatchInput = document.getElementById('reg-batch');
 const userAvatarDisplay = document.getElementById('user-avatar-display');
 
+// Profile Elements
 const profileIdInput = document.getElementById('profile-id');
 const profileNameInput = document.getElementById('profile-name');
 const profileYearSelect = document.getElementById('profile-year');
-const profileBatchInput = document.getElementById('profile-batch');
+const profileEnrollmentInput = document.getElementById('profile-enrollment'); // Changed from Batch
 const updateProfileBtn = document.getElementById('update-profile-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const profilePicInput = document.getElementById('profile-pic-input');
@@ -140,972 +153,50 @@ const securityOverlay = document.getElementById('security-overlay');
 const securityPinInput = document.getElementById('security-pin-input');
 const unlockBtn = document.getElementById('unlock-btn');
 const securityCancel = document.getElementById('security-cancel');
+const securityMessage = document.getElementById('security-message');
 
+// PIN CHANGE ELEMENTS
+const verifyPinInput = document.getElementById('current-security-pin-verify');
+const newPinInput = document.getElementById('new-security-pin');
+const updatePinBtn = document.getElementById('update-pin-btn');
 
-// --- INITIALIZATION & LOADERS ---
+// --- AUTH & PROFILE LOGIC ---
+const USERS_KEY = "cicr_auth_users";
+let isRegistering = false;
+let currentUser = null;
+let generatedOTP = null;
+let isVerified = false;
+let isAdminUnlocked = false; 
 
-function initializeListeners() {
-    setInterval(updateClock, 1000); updateClock();
-    
-    splashScreen.addEventListener('click', () => { 
-        AUDIO.play('click');
-        splashScreen.style.opacity = '0'; 
-        setTimeout(() => { 
-            splashScreen.style.display = 'none'; 
-            operateGate(() => {
-                loginScreen.style.display = 'block'; 
-            });
-        }, 500); 
-    });
-    
-    toggleAuthBtn.addEventListener("click", toggleAuthMode);
-    
-    // CONSOLIDATED LOGIN HANDLER
-    loginForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const email = usernameInput.value.trim();
-        const password = passwordInput.value.trim();
+function getStoredUsers() { return JSON.parse(localStorage.getItem(USERS_KEY) || "{}"); }
+function saveStoredUsers(users) { localStorage.setItem(USERS_KEY, JSON.stringify(users)); }
 
-        if (!email || !password) {
-            loginError.textContent = "Please fill in email and password.";
-            loginError.style.display = 'block';
-            return;
-        }
-
-        loginBtn.textContent = "PROCESSING...";
-        loginBtn.disabled = true;
-
-        if (isRegistering) {
-            // REGISTRATION FLOW
-            const name = regNameInput.value.trim();
-            const year = regYearSelect.value;
-            const batch = regBatchInput.value.trim();
-
-            if (!name || !batch) {
-                alert("Name and Batch are required.");
-                loginBtn.disabled = false; return;
-            }
-
-            if (isVerified) {
-                // Verified OTP Update
-                const { data, error } = await supabaseClient.auth.updateUser({
-                    password: password,
-                    data: { full_name: name, year: year, batch: batch }
-                });
-                if (error) alert("Profile Save Failed: " + error.message);
-                else { alert("Registration Complete!"); handleLoginSuccess(data.user); }
-            } else {
-                // New Sign Up
-                const { data, error } = await supabaseClient.auth.signUp({
-                    email: email,
-                    password: password,
-                    options: { data: { full_name: name, year: year, batch: batch } }
-                });
-                if (error) alert("Registration Failed: " + error.message);
-                else { alert("Registration Successful! Check Email/Login."); if(data.user) handleLoginSuccess(data.user); }
-            }
-        } else { 
-            // LOGIN FLOW
-            const { data, error } = await supabaseClient.auth.signInWithPassword({
-                email: email,
-                password: password
-            });
-
-            if (error) {
-                loginError.textContent = "Login Failed: " + error.message;
-                loginError.style.display = 'block';
-                loginBtn.textContent = "LOGIN";
-                loginBtn.disabled = false;
-            } else {
-                handleLoginSuccess(data.user);
-            }
-        }
-    });
-
-    // NAVIGATION
-    tabLinks.forEach(link => link.addEventListener('click', (e) => switchTab(e.target.getAttribute('data-tab'))));
-    
-    // UI ELEMENTS
-    attendanceTakerSelect.addEventListener("change", () => attendanceTakenBy.textContent = `Attendance Recorded By: ${attendanceTakerSelect.value}`);
-    yearSelect.addEventListener("change", renderStudents);
-    customTopicInput.addEventListener("input", updateSubjectDisplay);
-    subjectSelector.addEventListener("change", handleTopicChange);
-    saveBtn.addEventListener("click", saveData);
-    createGMeetBtn.addEventListener("click", () => window.open(`https://calendar.google.com/calendar/r/eventedit?text=${encodeURIComponent(getMeetingTopic())}`, '_blank'));
-    
-    // HISTORY ACTIONS
-    clearHistoryBtn.addEventListener("click", clearHistory);
-    removeSelectedBtn.addEventListener("click", removeSelectedRecords);
-    exportExcelBtn.addEventListener("click", exportToCSV);
-    
-    // SCHEDULING
-    scheduleMeetingBtn.addEventListener("click", handleScheduleMeeting);
-
-    // ADMIN ACTIONS
-    addPermanentGroupBtn.addEventListener("click", () => { if(addPermanentGroup(newPermanentGroupInput.value)) { alert("Group Added"); newPermanentGroupInput.value=""; } });
-    newMemberGroupSelect.addEventListener("change", handleGroupChange);
-    addMemberBtn.addEventListener("click", addMember);
-    removeMemberBtn.addEventListener("click", removeMember);
-    document.getElementById('update-pin-btn').addEventListener('click', updateAdminPin);
-
-    // PROJECT & EQUIPMENT
-    addProjectBtn.addEventListener("click", saveProject);
-    addEqBtn.addEventListener('click', saveEquipment);
-    
-    // CHAT
-    chatSendBtn.addEventListener("click", postMessage);
-    chatInput.addEventListener("keypress", (e) => { if(e.key === 'Enter') postMessage(); });
-    
-    // PROFILE
-    updateProfileBtn.addEventListener("click", updateProfile);
-    logoutBtn.addEventListener("click", logout);
-    userAvatarDisplay.addEventListener("click", () => switchTab('account'));
-    profilePicInput.addEventListener('change', handleProfilePicUpload);
-
-    // DIRECTORY & SYNC
-    document.getElementById('export-directory-btn').addEventListener('click', exportDirectoryCSV);
-    populateSyncMemberDropdown();
-
-    // SECURITY OVERLAY
-    unlockBtn.addEventListener('click', verifySecurityPin); 
-    securityCancel.addEventListener('click', () => { 
-        securityOverlay.style.display = 'none'; 
-        pendingTabId = null; 
-        pendingAction = null; 
-    });
-    securityPinInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') verifySecurityPin(); });
-
-    // DATES
-    const todayISO = new Date().toISOString().split('T')[0];
-    attendanceDate.value = todayISO; scheduleDateInput.value = todayISO; projectStartInput.value = todayISO;
-    eqIssueDate.value = todayISO;
-
-    // FETCH DATA
-    fetchAdminPin();
-    loadGroups(); 
-    loadStudents();
-}
-
-function updateClock() {
-    const now = new Date();
-    const timeString = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-    const dateString = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: '2-digit' });
-    digitalClock.textContent = `${dateString} | ${timeString}`;
-}
-
-// --- GATE & ANIMATION ---
-function operateGate(callback) {
-    AUDIO.play('transition');
-    techGate.classList.add('active');
-    setTimeout(() => {
-        if(callback) callback();
-        setTimeout(() => { techGate.classList.remove('active'); }, 1000);
-    }, 1200);
-}
-
-function showSuccessAnimation() {
-    AUDIO.play('success');
-    const overlay = document.getElementById('action-success-overlay');
-    overlay.style.display = 'flex';
-    setTimeout(() => { overlay.style.display = 'none'; }, 2000); 
-}
-
-// --- SECURITY LOGIC (CONSOLIDATED) ---
-async function fetchAdminPin() {
-    const { data } = await supabaseClient.from('app_settings').select('data_value').eq('category', 'admin_pin').single();
-    if(data && data.data_value) GLOBAL_PIN = data.data_value.replace(/"/g, ''); 
-}
-
-function verifySecurityPin() {
-    const input = document.getElementById('security-pin-input');
-    if(input.value === GLOBAL_PIN) {
-        isAdminUnlocked = true;
-        document.getElementById('security-overlay').style.display = 'none';
-        
-        // Resume Pending Actions
-        if(pendingTabId) { switchTab(pendingTabId); pendingTabId = null; }
-        if(pendingAction) { pendingAction(); pendingAction = null; }
-        
-    } else {
-        alert("ACCESS DENIED: INCORRECT PIN");
-        input.value = "";
-    }
-}
-
-async function updateAdminPin() {
-    const current = document.getElementById('current-security-pin-verify').value;
-    const newPin = document.getElementById('new-security-pin').value;
-    
-    if(current !== GLOBAL_PIN) return alert("Current PIN is incorrect.");
-    if(newPin.length !== 4) return alert("New PIN must be 4 digits.");
-
-    const { error } = await supabaseClient.from('app_settings').upsert({ category: 'admin_pin', data_value: newPin });
-
-    if(!error) {
-        GLOBAL_PIN = newPin;
-        alert("Security PIN Updated.");
-        
-        // RESTORED: Email Alert
-        const sub = encodeURIComponent("SECURITY ALERT: System PIN Updated");
-        const body = encodeURIComponent(`The CICR Portal Security PIN has been updated.\nNew Master PIN: ${newPin}\nUser: ${currentUser.name}`);
-        window.location.href = `mailto:${SYSTEM_OWNER_EMAIL}?subject=${sub}&body=${body}`;
-        
-        showSuccessAnimation();
-    }
-}
-
-
-// --- TAB NAVIGATION ---
-function switchTab(targetTabId) {
+function toggleAuthMode() {
+    isRegistering = !isRegistering;
     AUDIO.play('click');
-    
-    // SECURITY CHECKS
-    if ((targetTabId === 'admin' || targetTabId === 'history' || targetTabId === 'equipment') && !isAdminUnlocked) {
-        pendingTabId = targetTabId;
-        securityOverlay.style.display = 'flex';
-        securityPinInput.value = ''; securityPinInput.focus();
-        return; 
-    }
-
-    tabLinks.forEach(link => { link.classList.remove('active'); link.setAttribute('aria-selected', 'false'); });
-    tabContents.forEach(content => { content.classList.remove('active'); content.style.display = 'none'; });
-    
-    const activeLink = document.querySelector(`.tab-link[data-tab="${targetTabId}"]`);
-    const activeContent = document.getElementById(`${targetTabId}-content`);
-    
-    if (activeLink && activeContent) {
-        activeLink.classList.add('active'); 
-        activeContent.classList.add('active'); activeContent.style.display = 'block';
-        
-        // Tab Specific Loads
-        if (targetTabId === 'history') renderHistory();
-        else if (targetTabId === 'reports') calculatePersonalReport();
-        else if (targetTabId === 'projects') renderProjects();
-        else if (targetTabId === 'chat') { loadChat(); scrollChat(); }
-        else if (targetTabId === 'admin') { populateGroupSelects(); populateRemoveMemberDropdown(); }
-        else if (targetTabId === 'account') { loadUserProfile(); }
-        else if (targetTabId === 'equipment') { populateEqMemberDropdown(); renderEquipmentLogs(); }
-        else if (targetTabId === 'directory') { renderMemberDirectory(); }
-    }
-}
-
-// --- DATA & SYNC LOADING ---
-async function loadGroups() {
-    const { data } = await supabaseClient.from('groups').select('group_name').order('group_name', { ascending: true });
-    if (data) {
-        ALL_GROUPS = data.map(g => g.group_name);
-        populateGroupSelects(); 
-    }
-}
-
-async function loadStudents() {
-    const { data, error } = await supabaseClient.from('members').select('*').order('full_name', { ascending: true });
-    if (data) {
-        allMembers = data;
-        // Sync h4_students for legacy compatibility
-        h4_students = data.map(m => `${m.year}: ${m.full_name}`);
-        refreshAllDropdowns();
-    }
-}
-
-function refreshAllDropdowns() {
-    populateAttendanceTakerDropdown(); 
-    populateRemoveMemberDropdown(); 
-    populateSchedulingDropdowns(); 
-    populateEqMemberDropdown(); 
-    populateSyncMemberDropdown();
-    renderStudents();
-}
-
-
-// --- ATTENDANCE LOGIC ---
-function renderStudents() {
-    const list = document.getElementById('attendance-list');
-    list.innerHTML = "";
-    attendanceState = {}; 
-
-    const selectedGroups = Array.from(yearSelect.selectedOptions).map(o => o.value);
-    if (selectedGroups.length === 0) {
-        list.innerHTML = `<li style="padding: 15px; opacity: 0.7;">Select a Group/Year to load members.</li>`;
-        return;
-    }
-
-    const filteredMembers = allMembers.filter(m => selectedGroups.includes(m.year));
-    if (filteredMembers.length === 0) {
-        list.innerHTML = `<li style="padding: 15px; color: var(--color-danger);">No members found.</li>`;
-        return;
-    }
-
-    filteredMembers.forEach(member => {
-        const studentKey = `${member.year}: ${member.full_name}`;
-        attendanceState[studentKey] = "MARK"; 
-
-        const li = document.createElement("li");
-        li.className = "student-item unmarked";
-        li.innerHTML = `
-            <div class="student-info">
-                <div class="student-name">${member.full_name}</div>
-                <div class="student-id">${member.year} ${member.batch ? '| ' + member.batch : ''}</div>
-            </div>
-            <div class="status-controls">
-                <button class="status-button btn-present" data-key="${studentKey}">Present</button>
-                <button class="status-button btn-absent" data-key="${studentKey}">Absent</button>
-                <button class="status-button btn-unmarked" data-key="${studentKey}" style="opacity: 1.0;">Unmarked</button>
-            </div>
-        `;
-        list.appendChild(li);
-    });
-
-    list.querySelectorAll(".status-button").forEach(btn => btn.addEventListener("click", handleStatusClick));
-    updateSummary();
-}
-
-function handleStatusClick(e) {
-    AUDIO.play('click');
-    const key = e.target.getAttribute("data-key");
-    const status = e.target.textContent.toUpperCase();
-    attendanceState[key] = (status === "UNMARKED") ? "MARK" : status;
-
-    const listItem = e.target.closest('li');
-    listItem.classList.remove("present", "absent", "unmarked");
-    listItem.querySelectorAll(".status-button").forEach(b => b.style.opacity = '0.4');
-    
-    if (status === "PRESENT") listItem.classList.add("present");
-    else if (status === "ABSENT") listItem.classList.add("absent");
-    else listItem.classList.add("unmarked");
-    
-    e.target.style.opacity = '1.0';
-    updateSummary();
-}
-
-function updateSummary() {
-    let p = 0, a = 0, an = [];
-    for (const key in attendanceState) { 
-        if (attendanceState[key] === "PRESENT") p++; 
-        else if (attendanceState[key] === "ABSENT") { a++; an.push(key.split(": ")[1]); } 
-    }
-    const t = Object.keys(attendanceState).length;
-    const pct = t > 0 ? ((p / t) * 100).toFixed(1) : "0.0";
-    totalPresent.textContent = p; totalAbsent.textContent = a; presentPercentage.textContent = `${pct}%`;
-    absentListElement.textContent = an.length > 0 ? an.join(", ") : "None";
-}
-
-async function saveData() {
-    const selectedGroups = Array.from(yearSelect.selectedOptions).map(o => o.value);
-    if (Object.keys(attendanceState).length === 0 || selectedGroups.length === 0) return alert("Error: Select group and mark users.");
-    
-    const attendanceJson = Object.entries(attendanceState).map(([key, status]) => {
-        const [group, name] = key.split(": ");
-        return { group, name, status };
-    });
-
-    operateGate(async () => {
-        const { error } = await supabaseClient.from('attendance_logs').insert({
-            date: attendanceDate.value,
-            topic: getMeetingTopic(),
-            group_filter: selectedGroups.join(", "),
-            taker_name: attendanceTakerSelect.value.split("(")[0].trim(),
-            summary: meetingSummaryInput.value.trim() || "No summary.",
-            attendance_data: attendanceJson
-        });
-        if (error) alert("Error: " + error.message);
-        else { showSuccessAnimation(); renderHistory(); }
-    });
-}
-
-
-// --- HISTORY & LOGS ---
-async function renderHistory() {
-    historyListElement.innerHTML = "<li>Loading logs from cloud...</li>";
-    const { data: history, error } = await supabaseClient.from('attendance_logs').select('*').order('date', { ascending: false });
-
-    if (error) { historyListElement.innerHTML = `<li style="color:red">Error: ${error.message}</li>`; return; }
-    
-    historyListElement.innerHTML = history.length === 0 ? '<li style="padding: 15px; opacity: 0.6;">No logs available.</li>' : "";
-    document.getElementById("remove-selected-btn").style.display = history.length ? 'block' : 'none';
-    document.getElementById("clear-history-btn").style.display = history.length ? 'block' : 'none';
-
-    history.forEach(r => {
-        const attData = r.attendance_data || [];
-        const p = attData.filter(a => a.status === "PRESENT").length;
-        const t = attData.filter(a => a.status !== "MARK").length;
-        const pct = t > 0 ? ((p / t) * 100).toFixed(0) : 0;
-        
-        const li = document.createElement("li"); li.className = "history-item";
-        li.innerHTML = `
-            <div class="history-header-wrapper">
-                <input type="checkbox" class="history-checkbox" data-id="${r.id}" style="margin-right: 10px;">
-                <button class="history-header-btn" onclick="this.parentElement.nextElementSibling.style.display = this.parentElement.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
-                    <span>[${r.date}] ${r.topic}</span>
-                    <span style="font-weight: 700; color: var(--color-accent);">${p}/${t} (${pct}%)</span>
-                </button>
-            </div>
-            <div class="history-details" style="display:none;">
-                <p><strong>Recorder:</strong> ${r.taker_name}</p>
-                <p><strong>Summary:</strong> ${r.summary}</p>
-                <ul>${attData.map(a => `<li style="color:${a.status === 'PRESENT' ? 'var(--color-success)' : 'var(--color-danger)'}">${a.name} [${a.status}]</li>`).join("")}</ul>
-            </div>`;
-        historyListElement.appendChild(li);
-    });
-}
-
-async function clearHistory() {
-    if(!confirm("DANGER: This will delete ALL logs from the database. Are you sure?")) return;
-    
-    // Require PIN again for destructive action
-    const pin = prompt("Enter Master PIN to Confirm Deletion:");
-    if(pin !== GLOBAL_PIN) return alert("Incorrect PIN. Action Cancelled.");
-
-    // Supabase Delete All 
-    const { error } = await supabaseClient.from('attendance_logs').delete().neq('id', 0); 
-    if(error) alert("Error: " + error.message);
-    else { alert("All logs cleared."); renderHistory(); }
-}
-
-async function removeSelectedRecords() {
-    const checkboxes = document.querySelectorAll('.history-checkbox:checked');
-    if (!checkboxes.length) return alert("Select records.");
-    const ids = Array.from(checkboxes).map(c => parseInt(c.getAttribute('data-id')));
-    
-    const { error } = await supabaseClient.from('attendance_logs').delete().in('id', ids);
-    if(error) alert("Error: " + error.message);
-    else renderHistory();
-}
-
-// --- PROJECT SHELF FUNCTIONS ---
-async function renderProjects() {
-    liveProjectsList.innerHTML = "<p>Loading projects...</p>";
-    const { data: projects, error } = await supabaseClient.from('projects').select('*').order('created_at', { ascending: false });
-
-    if (error) { liveProjectsList.innerHTML = `<p style="color:red">Error: ${error.message}</p>`; return; }
-    
-    liveProjectsList.innerHTML = "";
-    if (!projects || projects.length === 0) {
-        liveProjectsList.innerHTML = '<p style="opacity:0.6; font-size:13px;">Shelf is empty.</p>';
-        return;
-    }
-
-    // Sort: Live projects first
-    projects.sort((a, b) => (a.type === 'live' ? -1 : 1));
-
-    projects.forEach(p => {
-        let techTags = p.tech_stack ? p.tech_stack.split(',').map(t => `<span class="project-tech-tag">${t.trim()}</span>`).join('') : '';
-        const timeline = `${p.date_start || 'N/A'} ${p.date_end ? 'to ' + p.date_end : '(Ongoing)'}`;
-
-        liveProjectsList.innerHTML += `
-        <div class="project-card">
-            <h4>${p.title} <span style="font-size:10px; color:${p.type === 'live' ? 'var(--color-success)' : '#888'}; border:1px solid currentColor; padding:2px 5px; border-radius:2px; vertical-align:middle;">${p.type === 'live' ? 'LIVE' : 'ARCHIVED'}</span></h4>
-            <div class="project-info"><strong>Lead:</strong> ${p.members}</div>
-            <div class="project-info" style="font-style:italic; color:#aaa; margin-bottom:10px;">"${p.purpose}"</div>
-            <div class="project-info"><strong>Stack:</strong><br>${techTags || 'N/A'}</div>
-            <div class="project-info" style="margin-top:10px;"><strong>Timeline:</strong> ${timeline}</div>
-            <div class="project-actions">
-                ${p.link_code ? `<a href="${p.link_code}" target="_blank" class="project-btn-link">🔗 Code</a>` : ''}
-                ${p.link_tinkercad ? `<a href="${p.link_tinkercad}" target="_blank" class="project-btn-link btn-tinkercad">⚡ Tinkercad</a>` : ''}
-            </div>
-            <button class="btn-delete-project" onclick="deleteProject(${p.id})">DELETE</button>
-        </div>`;
-    });
-}
-
-window.deleteProject = async function(id) {
-    if(!confirm("Delete this project?")) return;
-    const { error } = await supabaseClient.from('projects').delete().eq('id', id);
-    if(error) alert("Error: " + error.message); else renderProjects();
-};
-
-
-// --- EQUIPMENT TRACKER ---
-async function saveEquipment() {
-    const name = eqNameInput.value.trim();
-    const member = eqMemberSelect.value;
-    const group = eqGroupInput.value.trim();
-    const issue = eqIssueDate.value;
-    const ret = eqReturnDate.value;
-
-    if (!name || !member || !issue) { alert("Please fill Equipment Name, Member, and Issue Date."); return; }
-    
-    // Extract Name only
-    const memberName = member.includes("(") ? member.split(" (")[0] : member;
-
-    operateGate(async () => {
-        const { error } = await supabaseClient.from('equipment').insert({
-            item_name: name,
-            issued_to: memberName,
-            group_unit: group,
-            date_issue: issue,
-            date_return: ret || null,
-            status: "ISSUED"
-        });
-        if (error) alert("Error: " + error.message);
-        else { showSuccessAnimation(); eqNameInput.value = ""; eqGroupInput.value = ""; renderEquipmentLogs(); }
-    });
-}
-
-async function renderEquipmentLogs() {
-    eqLogBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Loading cloud data...</td></tr>';
-    const { data: logs, error } = await supabaseClient.from('equipment').select('*').order('created_at', { ascending: false });
-
-    if (error) return;
-    eqLogBody.innerHTML = "";
-    
-    logs.forEach(log => {
-        const isSubmitted = log.status === "SUBMITTED";
-        const isDueSoon = !isSubmitted && log.date_return && (new Date(log.date_return) - new Date() < 172800000);
-        
-        eqLogBody.innerHTML += `
-            <tr>
-                <td style="${isSubmitted ? 'opacity:0.5; text-decoration:line-through;' : 'color:var(--color-accent);'}">
-                    ${log.item_name} ${isDueSoon ? '<br><small style="color:var(--color-danger)">! DUE SOON</small>' : ''}
-                </td>
-                <td>${log.issued_to}<br><small>${log.group_unit}</small></td>
-                <td style="font-size:11px;">Out: ${log.date_issue}<br>Due: ${log.date_return || 'N/A'}</td>
-                <td><span style="color: ${isSubmitted ? 'var(--color-success)' : 'var(--color-tinker)'};">${log.status}</span></td>
-                <td>
-                    <div style="display:flex; gap:5px;">
-                        ${!isSubmitted ? `
-                            <button onclick="handleEqReturn(${log.id})" class="status-button" style="border:1px solid var(--color-success)!important;">Return</button>
-                            <button onclick="sendEquipmentReminder('${log.issued_to}', '${log.item_name}')" class="status-button" title="Send Reminder">🔔</button>
-                        ` : `
-                            <button onclick="deleteEqLog(${log.id})" class="status-button" style="border:1px solid var(--color-danger)!important;">Del</button>
-                        `}
-                    </div>
-                </td>
-            </tr>`;
-    });
-}
-
-// RESTORED: RETURN WITH SECURITY PIN
-window.handleEqReturn = function(id) {
-    securityOverlay.style.display = 'flex';
-    securityPinInput.value = ''; securityPinInput.focus();
-    
-    // Set Pending Action
-    pendingAction = async () => {
-        const { error } = await supabaseClient.from('equipment').update({ status: 'SUBMITTED' }).eq('id', id);
-        if(error) alert("Error: " + error.message);
-        else { showSuccessAnimation(); renderEquipmentLogs(); }
-    };
-};
-
-window.deleteEqLog = async function(id) {
-    if(!confirm("Permanently Delete Log?")) return;
-    const { error } = await supabaseClient.from('equipment').delete().eq('id', id);
-    if(error) alert(error.message); else renderEquipmentLogs();
-};
-
-// RESTORED: EMAIL REMINDER
-window.sendEquipmentReminder = function(memberName, itemName) {
-    // Attempt to find user email
-    const memberObj = allMembers.find(m => m.full_name === memberName);
-    const email = memberObj ? memberObj.email : ""; 
-    
-    const sub = encodeURIComponent(`URGENT: Return Reminder - ${itemName}`);
-    const body = encodeURIComponent(`Hello ${memberName},\n\nPlease return the equipment: ${itemName}.\n\nRegards,\nCICR Inventory`);
-    window.location.href = `mailto:${email}?subject=${sub}&body=${body}`;
-};
-
-
-// --- CHAT FUNCTIONS ---
-async function loadChat() {
-    chatDisplay.innerHTML = '<div style="text-align:center; opacity:0.6; padding:20px;">Loading Secure Channel...</div>';
-    const { data: chat, error } = await supabaseClient.from('chat_messages').select('*').order('created_at', { ascending: true }).limit(50);
-
-    if (error) { chatDisplay.innerHTML = `<div style="color:red">Connection Error</div>`; return; }
-
-    chatDisplay.innerHTML = "";
-    if (!chat || chat.length === 0) {
-        chatDisplay.innerHTML = `<div class="chat-message msg-other"><span class="msg-meta">SYSTEM</span>Channel Initialized.</div>`;
-        return;
-    }
-
-    const myName = currentUser ? currentUser.name : "ME";
-    chat.forEach(msg => {
-        const dateObj = new Date(msg.created_at);
-        const timeStr = dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        const isSelf = msg.sender_name === myName;
-        
-        const div = document.createElement("div");
-        div.className = `chat-message ${isSelf ? 'msg-self' : 'msg-other'}`;
-        div.innerHTML = `<span class="msg-meta">${msg.sender_name} | ${timeStr}</span>${msg.message_text}`;
-        chatDisplay.appendChild(div);
-    });
-    scrollChat();
-}
-
-async function postMessage() {
-    const text = chatInput.value.trim();
-    if(!text) return;
-    
-    chatInput.disabled = true;
-    const { error } = await supabaseClient.from('chat_messages').insert({
-        sender_name: currentUser ? currentUser.name : "Unknown",
-        message_text: text
-    });
-    chatInput.disabled = false;
-    
-    if (error) alert("Send Failed: " + error.message);
-    else { chatInput.value = ""; loadChat(); }
-}
-
-function scrollChat() { chatDisplay.scrollTop = chatDisplay.scrollHeight; }
-
-
-// --- ADMIN MEMBER MANAGEMENT ---
-async function addMember() {
-    const name = newMemberNameInput.value.trim();
-    const email = document.getElementById('new-member-email').value.trim();
-    const phone = document.getElementById('new-member-phone').value.trim();
-    const year = document.getElementById('new-member-year-select').value;
-    const batch = document.getElementById('new-member-batch').value.trim();
-    let group = newMemberGroupSelect.value;
-
-    if(group === "Custom") group = customGroupInput.value.trim();
-
-    if(!name || !email || !batch) return alert("Name, Email, and Batch are required.");
-
-    // 1. Insert into DB (members table)
-    const { error } = await supabaseClient.from('members').insert([{ full_name: name, year: year, batch: batch }]);
-    
-    if(error) {
-        alert("Database Error: " + error.message);
+    const forgotLink = document.getElementById('forgot-password-link');
+    if (isRegistering) {
+        authTitle.textContent = "NEW USER REGISTRATION";
+        loginBtn.textContent = "REGISTER & LOGIN";
+        toggleAuthBtn.textContent = "Back to Login";
+        registrationFields.style.display = 'block';
+        loginError.style.display = 'none';
+        forgotLink.style.display = 'none'; 
+        document.getElementById('otp-section').style.display = 'block';
+        otpInputWrapper.style.display = 'none';
+        sendOtpBtn.style.display = 'block';
+        isVerified = false;
+        otpStatus.textContent = "";
     } else {
-        // 2. Send Invitation Email (Mailto)
-        const subject = encodeURIComponent("CICR Portal Invitation");
-        const body = encodeURIComponent(`Hello ${name},\n\nWelcome to CICR!\nDomain: ${group}\nBatch: ${batch}\n\nPlease register here: https://cicr.in\nUse Email: ${email}\n\nRegards,\nCICR Admin`);
-        window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
-        
-        alert(`Success: ${name} added. Invitation drafted.`);
-        newMemberNameInput.value = "";
-        document.getElementById('new-member-email').value = "";
-        loadStudents(); // Refresh lists
+        authTitle.textContent = "CICR MEMBER ACCESS";
+        loginBtn.textContent = "LOGIN";
+        toggleAuthBtn.textContent = "Create New Account";
+        registrationFields.style.display = 'none';
+        loginError.style.display = 'none';
+        forgotLink.style.display = 'block';
     }
 }
 
-async function removeMember() {
-    const name = removeMemberSelect.value;
-    if(!name) return alert("Select a user.");
-    if(!confirm(`Delete "${name}" from database?`)) return;
-
-    // Extract real name from "Name (Year)" format
-    const realName = name.split(" (")[0];
-
-    const { error } = await supabaseClient.from('members').delete().eq('full_name', realName);
-    if(error) alert("Error: " + error.message);
-    else { alert("User deleted."); loadStudents(); }
-}
-
-
-// --- SCHEDULING ---
-function handleScheduleMeeting() {
-    const initiator = scheduleInitiatorSelect.value;
-    const recipient = scheduleRecipientSelect.value;
-    const sEmail = senderEmailInput.value;
-    const rEmail = recipientEmailInput.value;
-    const subject = scheduleSubjectInput.value;
-    const date = scheduleDateInput.value;
-    const time = scheduleTimeInput.value;
-    
-    if(!rEmail || !subject) return alert("Recipient Email and Subject required.");
-
-    const body = `Meeting Invite\n\nTopic: ${subject}\nDate: ${date} at ${time}\nLocation: ${scheduleLocationTypeSelect.value} ${scheduleLocationDetailsInput.value}\n\nHost: ${initiator}\nGuest: ${recipient}`;
-    window.location.href = `mailto:${rEmail}?cc=${sEmail}&subject=${encodeURIComponent("INVITE: " + subject)}&body=${encodeURIComponent(body)}`;
-}
-
-
-// --- MEMBER DIRECTORY ---
-async function renderMemberDirectory() {
-    const grid = document.getElementById('member-directory-grid');
-    const badge = document.getElementById('member-count-badge');
-    grid.innerHTML = '<p style="color:#888;">Loading...</p>';
-
-    const { data: users, error } = await supabaseClient.from('profiles').select('*').order('full_name', { ascending: true });
-    if (error) { grid.innerHTML = "Error loading directory."; return; }
-
-    grid.innerHTML = "";
-    badge.textContent = users.length;
-
-    users.forEach(user => {
-        const initial = user.full_name ? user.full_name.charAt(0) : "?";
-        const bgStyle = user.avatar_url ? `style="background-image: url('${user.avatar_url}')"` : "";
-        
-        grid.innerHTML += `
-        <div class="member-card">
-            <div class="member-card-photo" ${bgStyle}>
-                ${!user.avatar_url ? `<span style="font-size:30px; color:var(--color-accent);">${initial}</span>` : ''}
-            </div>
-            <div class="member-card-name">${user.full_name}</div>
-            <div class="member-card-detail">🎓 ${user.year || 'N/A'} | ${user.batch || 'N/A'}</div>
-            <div class="member-card-detail" style="color:var(--color-accent); margin-top:5px;">${user.domain || 'Member'}</div>
-            ${isAdminUnlocked ? `<button class="btn-revoke-access" onclick="deleteUserAccount('${user.id}')">REVOKE ACCESS</button>` : ''}
-        </div>`;
-    });
-}
-
-window.deleteUserAccount = async function(id) {
-    if(!confirm("PERMANENTLY DELETE USER PROFILE?")) return;
-    const { error } = await supabaseClient.from('profiles').delete().eq('id', id);
-    if(error) alert(error.message); else { alert("User deleted."); renderMemberDirectory(); }
-};
-
-async function exportDirectoryCSV() {
-    const { data } = await supabaseClient.from('profiles').select('*');
-    if(!data || !data.length) return alert("No members.");
-    
-    let csv = "Name,Email,Phone,Year,Batch,Domain\n";
-    data.forEach(u => csv += `"${u.full_name}","${u.email||''}","${u.phone||''}","${u.year}","${u.batch}","${u.domain}"\n`);
-    
-    const link = document.createElement("a");
-    link.href = "data:text/csv;charset=utf-8," + encodeURI(csv);
-    link.download = "CICR_Directory.csv";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-
-// --- ACCOUNT PROFILE ---
-async function updateProfile() {
-    operateGate(async () => {
-        const name = profileNameInput.value.trim();
-        const year = profileYearSelect.value;
-        const batch = profileBatchInput.value.trim();
-        let avatarUrl = currentUser.avatar;
-
-        // Upload Photo if selected
-        if (selectedAvatarFile) {
-            const fileName = `${currentUser.id}_${Date.now()}.png`;
-            const { error: upErr } = await supabaseClient.storage.from('avatars').upload(fileName, selectedAvatarFile, { upsert: true });
-            if (upErr) return alert("Photo Upload Failed: " + upErr.message);
-            
-            const { data } = supabaseClient.storage.from('avatars').getPublicUrl(fileName);
-            avatarUrl = data.publicUrl;
-        }
-
-        const { error } = await supabaseClient.from('profiles').upsert({
-            id: currentUser.id,
-            full_name: name, year: year, batch: batch, avatar_url: avatarUrl,
-            email: currentUser.email // Ensure email is synced
-        });
-
-        if (error) alert("Update Failed: " + error.message);
-        else {
-            currentUser.name = name; currentUser.year = year; currentUser.batch = batch; currentUser.avatar = avatarUrl;
-            showSuccessAnimation(); loadUserProfile(); selectedAvatarFile = null;
-        }
-    });
-}
-
-// --- CSV EXPORT (FIXED) ---
-async function exportToCSV() {
-    const btn = document.getElementById('export-excel-btn');
-    btn.textContent = "Processing...";
-
-    const checkboxes = document.querySelectorAll('.history-checkbox:checked');
-    const selectedIds = Array.from(checkboxes).map(c => parseInt(c.getAttribute('data-id')));
-    
-    const { data: history, error } = await supabaseClient.from('attendance_logs').select('*').order('date', { ascending: false });
-
-    if (error || !history) { alert("Export Error: " + error.message); btn.textContent = "Export CSV"; return; }
-
-    const recordsToExport = selectedIds.length > 0 ? history.filter(r => selectedIds.includes(r.id)) : history;
-
-    if (recordsToExport.length === 0) { alert("No records."); btn.textContent = "Export CSV"; return; }
-
-    let csv = "Date,Topic,Group,Recorder,Summary,Student Name,Student Group,Status\n";
-    recordsToExport.forEach(record => {
-        const attData = record.attendance_data || [];
-        attData.forEach(att => {
-            csv += `${record.date},${(record.topic||"").replace(/,/g," ")},${(record.group_filter||"").replace(/,/g," ")},${record.taker_name},${(record.summary||"").replace(/,/g," ")},${att.name},${att.group},${att.status}\n`;
-        });
-    });
-    
-    const link = document.createElement("a");
-    link.href = "data:text/csv;charset=utf-8," + encodeURI(csv);
-    link.download = `CICR_Report_${new Date().toISOString().slice(0,10)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    btn.textContent = "Export CSV";
-}
-
-// --- ANALYTICS ---
-async function calculatePersonalReport() {
-    personalReportBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Analyzing Cloud Data...</td></tr>';
-    
-    const { data: history } = await supabaseClient.from('attendance_logs').select('attendance_data');
-    if (!history) { personalReportBody.innerHTML = '<tr><td colspan="3" style="color:red;">Analysis Failed.</td></tr>'; return; }
-
-    const reportData = {};
-    h4_students.forEach(m => {
-        const [grp, name] = m.split(": ");
-        reportData[m] = { total: 0, attended: 0, group: grp, name: name };
-    });
-
-    history.forEach(r => {
-        (r.attendance_data || []).forEach(a => {
-            const key = `${a.group}: ${a.name}`;
-            if (reportData[key] && a.status !== "MARK" && a.status !== "UNMARKED") { 
-                reportData[key].total++; 
-                if (a.status === "PRESENT") reportData[key].attended++; 
-            }
-        });
-    });
-    
-    personalReportBody.innerHTML = "";
-    Object.keys(reportData).sort().forEach(key => {
-        const d = reportData[key];
-        const pct = d.total > 0 ? ((d.attended / d.total) * 100).toFixed(1) : 0;
-        const color = d.total > 0 ? (pct >= 75 ? 'var(--color-success)' : pct >= 50 ? 'var(--color-tinker)' : 'var(--color-danger)') : '#ccc';
-        
-        personalReportBody.innerHTML += `
-        <tr><td>${d.name}</td><td>${d.group}</td>
-            <td style="text-align:left;">
-                <span style="display:inline-block; width:45px; font-weight:bold; color:${color};">${d.total > 0 ? pct + "%" : "N/A"}</span>
-                <div class="analytics-progress-wrapper"><div class="analytics-progress-fill" style="width:${d.total > 0 ? pct : 0}%; background-color:${color};"></div></div>
-            </td>
-        </tr>`;
-    });
-}
-
-
-// --- HELPERS ---
-function createMemberOption(member) {
-    const option = document.createElement("option");
-    option.value = member.full_name; 
-    option.textContent = `${member.full_name} (${member.year})`;
-    return option;
-}
-
-function populateAttendanceTakerDropdown() {
-    attendanceTakerSelect.innerHTML = '<option value="" disabled selected>-- Select Member --</option>';
-    allMembers.forEach(m => attendanceTakerSelect.appendChild(createMemberOption(m)));
-}
-
-function populateRemoveMemberDropdown() {
-    removeMemberSelect.innerHTML = '<option value="" disabled selected>-- Select User --</option>';
-    allMembers.forEach(m => removeMemberSelect.appendChild(createMemberOption(m)));
-}
-
-function populateEqMemberDropdown() {
-    eqMemberSelect.innerHTML = '<option value="" disabled selected>-- Select Member --</option>';
-    allMembers.forEach(m => eqMemberSelect.appendChild(createMemberOption(m)));
-}
-
-function populateSyncMemberDropdown() {
-    const s = document.getElementById('sync-member-select'); if(!s) return;
-    s.innerHTML = '<option value="" disabled selected>-- Select Member --</option>';
-    allMembers.forEach(m => s.appendChild(createMemberOption(m)));
-}
-
-function populateGroupSelects() {
-    const cur = Array.from(yearSelect.selectedOptions).map(o => o.value);
-    yearSelect.innerHTML = "";
-    ALL_GROUPS.forEach(g => {
-        const o = document.createElement("option"); o.value = g; o.textContent = g;
-        if (cur.includes(g)) o.selected = true; yearSelect.appendChild(o);
-    });
-    if(!yearSelect.selectedOptions.length && yearSelect.options.length) yearSelect.options[0].selected = true;
-
-    newMemberGroupSelect.innerHTML = '';
-    ALL_GROUPS.forEach(g => {
-        const o = document.createElement('option'); o.value = g; o.textContent = g; newMemberGroupSelect.appendChild(o);
-    });
-    const c = document.createElement('option'); c.value = "Custom"; c.textContent = "Custom Unit..."; newMemberGroupSelect.appendChild(c);
-}
-
-function populateSchedulingDropdowns() {
-    scheduleInitiatorSelect.innerHTML = '<option value="" disabled selected>-- Sender --</option>';
-    scheduleRecipientSelect.innerHTML = '<option value="" disabled selected>-- Recipient --</option>';
-    allMembers.forEach(m => {
-        scheduleInitiatorSelect.appendChild(createMemberOption(m));
-        scheduleRecipientSelect.appendChild(createMemberOption(m));
-    });
-}
-
-function toggleAuthMode() { 
-    isRegistering = !isRegistering; 
-    loginForm.reset(); loginError.style.display='none';
-    authTitle.textContent = isRegistering ? "REGISTER NEW ACCOUNT" : "MEMBER ACCESS";
-    loginBtn.textContent = isRegistering ? "REGISTER" : "LOGIN";
-    toggleAuthBtn.textContent = isRegistering ? "Back to Login" : "Create New Account";
-    registrationFields.style.display = isRegistering ? 'block' : 'none';
-    document.getElementById('otp-section').style.display = isRegistering ? 'block' : 'none';
-}
-
-function handleLoginSuccess(user) {
-    if(!user) return;
-    currentUser = {
-        id: user.id, email: user.email,
-        name: user.user_metadata.full_name || "Member",
-        year: user.user_metadata.year || "N/A",
-        batch: user.user_metadata.batch || "N/A",
-        avatar: user.user_metadata.avatar_url || null
-    };
-    loginScreen.style.display = 'none';
-    const s = document.getElementById('success-screen');
-    s.style.display = 'flex';
-    loadUserProfile();
-    setTimeout(() => { s.style.display = 'none'; appContent.style.display = 'block'; switchTab('attendance'); }, 2000);
-}
-
-function loadUserProfile() {
-    if (!currentUser) return;
-    if (currentUser.avatar) userAvatarDisplay.style.backgroundImage = `url(${currentUser.avatar})`;
-    else userAvatarDisplay.textContent = currentUser.name.charAt(0);
-    userAvatarDisplay.style.display = 'flex';
-    profileIdInput.value = currentUser.email;
-    profileNameInput.value = currentUser.name;
-}
-
-function getMeetingTopic() { return subjectSelector.value === "Other" && customTopicInput.value ? customTopicInput.value : subjectSelector.value; }
-function handleTopicChange() { customTopicInput.style.display = subjectSelector.value === "Other" ? "block" : "none"; }
-function handleGroupChange() { document.getElementById("custom-group-input-wrapper").style.display = newMemberGroupSelect.value === "Custom" ? "block" : "none"; }
-
-async function saveProject() {
-    operateGate(async () => {
-        const { error } = await supabaseClient.from('projects').insert({
-            title: projectNameInput.value,
-            type: projectTypeSelect.value,
-            members: projectMembersInput.value,
-            link_code: projectLinkInput.value,
-            link_tinkercad: projectTinkercadInput.value,
-            purpose: projectPurposeInput.value,
-            tech_stack: projectTechInput.value,
-            date_start: projectStartInput.value,
-            date_end: projectEndInput.value || null
-        });
-        if (error) alert(error.message); else { showSuccessAnimation(); renderProjects(); }
-    });
-}
-
-async function addPermanentGroup(groupName) {
-    if (!groupName) return false;
-    if (!ALL_GROUPS.includes(groupName)) {
-        ALL_GROUPS.push(groupName);
-        const { error } = await supabaseClient.from('app_settings').upsert({ category: 'groups_list', data_value: ALL_GROUPS }, { onConflict: 'category' });
-        if (error) { alert(error.message); return false; }
-        populateGroupSelects(); return true;
-    }
-    return false;
-}
-
-let selectedAvatarFile = null;
-function handleProfilePicUpload(e) { 
-    selectedAvatarFile = e.target.files[0]; 
-    if(selectedAvatarFile) {
-        const reader = new FileReader();
-        reader.onload = (ev) => profilePreview.style.backgroundImage = `url(${ev.target.result})`;
-        reader.readAsDataURL(selectedAvatarFile);
-    }
-}
-
-async function logout() {
-    await supabaseClient.auth.signOut();
-    window.location.reload();
-}
-
-// TOGGLE PASSWORD
 togglePasswordBtn.addEventListener('click', () => {
     const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
     passwordInput.setAttribute('type', type);
@@ -1115,43 +206,907 @@ togglePasswordBtn.addEventListener('click', () => {
     else { showIcon.style.display = 'none'; hideIcon.style.display = 'block'; }
 });
 
-// OTP SEND
-sendOtpBtn.addEventListener('click', async () => {
-    const email = usernameInput.value.trim();
-    if(!email || !email.includes('@')) { alert("Valid Email Required."); return; }
-    sendOtpBtn.textContent = "SENDING..."; sendOtpBtn.disabled = true;
+sendOtpBtn.addEventListener('click', () => {
+    const contact = usernameInput.value;
+    if(!contact) { highlightError(usernameInput); alert("Enter Email/Phone first"); return; }
+    
+    // Validate if it's either an email or a 10 digit phone
+    if(!validateEmail(contact) && !validatePhone(contact)) {
+        highlightError(usernameInput);
+        alert("Please enter a valid Email Address or a 10-digit Mobile Number.");
+        return;
+    }
 
-    const { error } = await supabaseClient.auth.signInWithOtp({ email: email });
-    if (error) { alert(error.message); sendOtpBtn.textContent = "SEND OTP"; sendOtpBtn.disabled = false; }
-    else { sendOtpBtn.style.display = 'none'; otpInputWrapper.style.display = 'block'; otpStatus.textContent = "Code Sent."; }
+    generatedOTP = Math.floor(100000 + Math.random() * 900000);
+    alert(`[SIMULATION] Your OTP code is: ${generatedOTP}`);
+    sendOtpBtn.style.display = 'none';
+    otpInputWrapper.style.display = 'block';
+    otpStatus.textContent = "OTP Sent. Check your device.";
 });
 
-// OTP VERIFY
-verifyOtpBtn.addEventListener('click', async () => {
-    const email = usernameInput.value.trim();
-    const token = otpInput.value.trim();
-    if(!token) return alert("Enter Code");
-    verifyOtpBtn.textContent = "VERIFYING...";
-
-    const { data, error } = await supabaseClient.auth.verifyOtp({ email: email, token: token, type: 'email' });
-    if (error) { alert(error.message); verifyOtpBtn.textContent = "VERIFY CODE"; }
-    else { isVerified = true; otpStatus.textContent = "VERIFIED ✓"; otpStatus.style.color = "var(--color-success)"; otpInputWrapper.style.display = 'none'; }
+verifyOtpBtn.addEventListener('click', () => {
+    if(otpInput.value == generatedOTP) {
+        isVerified = true;
+        otpStatus.textContent = "VERIFIED ✓";
+        otpStatus.style.color = "var(--color-success)";
+        otpInputWrapper.style.display = 'none';
+    } else { alert("Incorrect OTP"); }
 });
 
+function loadUserProfile() {
+    if (!currentUser) return;
+    if (currentUser.avatar) {
+        userAvatarDisplay.style.backgroundImage = `url(${currentUser.avatar})`;
+        userAvatarDisplay.textContent = "";
+        profilePreview.style.backgroundImage = `url(${currentUser.avatar})`;
+    } else {
+        const initial = currentUser.name ? currentUser.name.charAt(0).toUpperCase() : '?';
+        userAvatarDisplay.style.backgroundImage = "none";
+        userAvatarDisplay.textContent = initial;
+        profilePreview.style.backgroundImage = "none";
+        profilePreview.textContent = ""; 
+    }
+    userAvatarDisplay.style.display = 'flex';
+    profileIdInput.value = currentUser.id;
+    profileNameInput.value = currentUser.name;
+    profileYearSelect.value = currentUser.year || "1st Year";
+    profileEnrollmentInput.value = currentUser.enrollment || "";
+}
 
-// --- EXECUTE ---
-initializeListeners();
+function handleProfilePicUpload(event) {
+    const file = event.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const base64Image = e.target.result;
+            profilePreview.style.backgroundImage = `url(${base64Image})`;
+            currentUser.tempAvatar = base64Image; 
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+function operateGate(callback) {
+    AUDIO.play('transition');
+    techGate.classList.add('active');
+    setTimeout(() => {
+        if(callback) callback();
+        setTimeout(() => { techGate.classList.remove('active'); }, 1000);
+    }, 1200);
+}
+
+function updateProfile() {
+    operateGate(() => {
+        if (!currentUser) return;
+        const users = getStoredUsers();
+        currentUser.name = profileNameInput.value.trim();
+        currentUser.year = profileYearSelect.value;
+        currentUser.enrollment = profileEnrollmentInput.value.trim();
+        if (currentUser.tempAvatar) { currentUser.avatar = currentUser.tempAvatar; delete currentUser.tempAvatar; }
+        if (users[currentUser.id]) {
+            users[currentUser.id].name = currentUser.name;
+            users[currentUser.id].year = currentUser.year;
+            users[currentUser.id].enrollment = currentUser.enrollment;
+            if(currentUser.avatar) users[currentUser.id].avatar = currentUser.avatar;
+            saveStoredUsers(users);
+            showSuccessAnimation();
+            loadUserProfile(); 
+        }
+    });
+}
+
+// SECURITY PIN CHANGE LOGIC
+updatePinBtn.addEventListener('click', () => {
+    const currentVerify = verifyPinInput.value.trim();
+    const newPin = newPinInput.value.trim();
+
+    if(currentVerify !== GLOBAL_SECURITY_PIN) return alert("Verification Failed: Current Master PIN is incorrect.");
+    if(newPin.length !== 4 || isNaN(newPin)) return alert("PIN must be exactly 4 digits.");
+    
+    GLOBAL_SECURITY_PIN = newPin;
+    localStorage.setItem("cicr_security_pin", newPin);
+    
+    // SEND MAIL PROTOCOL
+    const sub = encodeURIComponent("SECURITY ALERT: System PIN Updated");
+    const body = encodeURIComponent(`The CICR Portal Security PIN has been updated.\nNew Master PIN: ${newPin}\nUpdated By Admin: ${currentUser ? currentUser.name : 'Unknown User'}\n\nThis is a system generated log.`);
+    window.location.href = `mailto:${SYSTEM_OWNER_EMAIL}?subject=${sub}&body=${body}`;
+    
+    verifyPinInput.value = "";
+    newPinInput.value = "";
+    showSuccessAnimation();
+    alert("System Master PIN Authorized and Updated. Alerts sent.");
+});
+
+function logout() {
+    operateGate(() => {
+        currentUser = null;
+        isAdminUnlocked = false; 
+        userAvatarDisplay.style.display = 'none';
+        appContent.style.display = 'none';
+        loginScreen.style.display = 'block';
+        usernameInput.value = ''; passwordInput.value = '';
+        if(isRegistering) toggleAuthMode();
+    });
+}
+
+function showSuccessAnimation() {
+    AUDIO.play('success');
+    const overlay = document.getElementById('action-success-overlay');
+    overlay.style.display = 'flex';
+    setTimeout(() => { overlay.style.display = 'none'; }, 2000); 
+}
 
 // --- BACKGROUND PARTICLES ---
 const canvas = document.getElementById('particles-canvas');
 const ctx = canvas.getContext('2d');
 let particles = [];
 function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-window.addEventListener('resize', resizeCanvas); resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
 class Particle {
-    constructor() { this.x = Math.random() * canvas.width; this.y = Math.random() * canvas.height; this.vx = (Math.random() - 0.5); this.vy = (Math.random() - 0.5); this.size = Math.random() * 2 + 1; }
-    update() { this.x += this.vx; this.y += this.vy; if(this.x<0 || this.x>canvas.width) this.vx*=-1; if(this.y<0 || this.y>canvas.height) this.vy*=-1; }
-    draw() { ctx.fillStyle = '#66fcf1'; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill(); }
+    constructor() {
+        this.x = Math.random() * canvas.width; this.y = Math.random() * canvas.height;
+        this.vx = (Math.random() - 0.5) * 1.5; this.vy = (Math.random() - 0.5) * 1.5;
+        this.size = Math.random() * 2 + 1; this.color = '#66fcf1';
+    }
+    update() {
+        this.x += this.vx; this.y += this.vy;
+        if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+        if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+    }
+    draw() { ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill(); }
 }
-function loop() { ctx.clearRect(0,0,canvas.width,canvas.height); particles.forEach(p=>{p.update();p.draw();}); requestAnimationFrame(loop); }
-for(let i=0;i<50;i++) particles.push(new Particle()); loop();
+function initParticles() {
+    particles = [];
+    const count = Math.floor(window.innerWidth / 15);
+    for (let i = 0; i < count; i++) particles.push(new Particle());
+}
+function animateParticles() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < particles.length; i++) {
+        particles[i].update(); particles[i].draw();
+        for (let j = i; j < particles.length; j++) {
+            const dx = particles[i].x - particles[j].x;
+            const dy = particles[i].y - particles[j].y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 150) { ctx.strokeStyle = `rgba(69, 162, 158, ${1 - dist/150})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y); ctx.lineTo(particles[j].x, particles[j].y); ctx.stroke(); }
+        }
+    }
+    requestAnimationFrame(animateParticles);
+}
+initParticles(); animateParticles();
+
+// --- TAB LOGIC ---
+let pendingTabId = null; 
+let pendingAction = null; 
+
+function switchTab(targetTabId) {
+    AUDIO.play('click');
+    if ((targetTabId === 'admin' || targetTabId === 'history' || targetTabId === 'directory') && !isAdminUnlocked) {
+        pendingTabId = targetTabId;
+        securityMessage.textContent = "This section requires High-Level Security Clearance.";
+        securityOverlay.style.display = 'flex'; 
+        securityPinInput.value = ''; 
+        securityPinInput.focus(); 
+        return; 
+    }
+    tabLinks.forEach(link => { link.classList.remove('active'); link.setAttribute('aria-selected', 'false'); });
+    tabContents.forEach(content => { content.classList.remove('active'); content.style.display = 'none'; });
+    const activeLink = document.querySelector(`.tab-link[data-tab="${targetTabId}"]`);
+    const activeContent = document.getElementById(`${targetTabId}-content`);
+    if (activeLink && activeContent) {
+        activeLink.classList.add('active'); activeLink.setAttribute('aria-selected', 'true');
+        activeContent.classList.add('active'); activeContent.style.display = 'block';
+        if (targetTabId === 'history') renderHistory();
+        else if (targetTabId === 'reports') calculatePersonalReport();
+        else if (targetTabId === 'projects') renderProjects();
+        else if (targetTabId === 'chat') { loadChat(); scrollChat(); }
+        else if (targetTabId === 'admin') { populateGroupSelects(); }
+        else if (targetTabId === 'account') { loadUserProfile(); }
+        else if (targetTabId === 'equipment') { renderEquipmentLogs(); }
+        else if (targetTabId === 'directory') renderMemberDirectory();
+        else if (targetTabId === 'scheduling') populateSchedulingDropdowns();
+    }
+}
+
+function verifySecurityPin() {
+    if(securityPinInput.value === GLOBAL_SECURITY_PIN) { 
+        isAdminUnlocked = true; 
+        securityOverlay.style.display = 'none'; 
+        
+        if(pendingTabId) { 
+            switchTab(pendingTabId); 
+            pendingTabId = null; 
+        } 
+        
+        if(pendingAction) {
+            pendingAction();
+            pendingAction = null;
+        }
+    } 
+    else { 
+        alert("ACCESS DENIED: INCORRECT PIN"); 
+        securityPinInput.value = ''; 
+        securityPinInput.focus(); 
+    }
+}
+unlockBtn.addEventListener('click', verifySecurityPin);
+securityCancel.addEventListener('click', () => { securityOverlay.style.display = 'none'; pendingTabId = null; pendingAction = null; });
+securityPinInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') verifySecurityPin(); });
+
+// --- PROJECT SHELF ---
+function loadProjects() { return JSON.parse(localStorage.getItem("cicrProjects") || "[]"); }
+function saveProject() {
+    const name = projectNameInput.value.trim();
+    const type = projectTypeSelect.value;
+    
+    // NEW MULTI-SELECT LOGIC
+    const selectedMembers = Array.from(projectMembersSelect.selectedOptions).map(o => o.value);
+    const members = selectedMembers.join(", ");
+    
+    const rawLinks = projectLinksInput.value.trim(); 
+    const start = projectStartInput.value;
+    const end = projectEndInput.value;
+    const purpose = projectPurposeInput.value.trim();
+    const tech = projectTechInput.value.trim();
+
+    if (!name || !members || !purpose) { alert("Error: Title, Members, and Purpose are required."); return; }
+    
+    // ENFORCE LINKS VALIDATION
+    if (rawLinks) {
+        const linkArr = rawLinks.split(',').map(l => l.trim());
+        for (let l of linkArr) {
+            if (!validateURL(l)) {
+                highlightError(projectLinksInput);
+                alert(`Invalid URL detected: "${l}". All resources must be valid links starting with http:// or https://`);
+                return;
+            }
+        }
+    }
+
+    operateGate(() => {
+        const newProject = { id: Date.now(), name, type, members, links: rawLinks, start, end, purpose, tech };
+        const projects = loadProjects(); projects.push(newProject);
+        localStorage.setItem("cicrProjects", JSON.stringify(projects));
+        showSuccessAnimation();
+        projectNameInput.value = ""; projectLinksInput.value = ""; 
+        projectStartInput.value = ""; projectEndInput.value = ""; projectPurposeInput.value = "";
+        projectTechInput.value = "";
+        renderProjects();
+    });
+}
+function renderProjects() {
+    const projects = loadProjects(); liveProjectsList.innerHTML = "";
+    if (projects.length === 0) { liveProjectsList.innerHTML = '<p style="opacity:0.6; font-size:13px;">Shelf is empty. Add a project above.</p>'; return; }
+    projects.sort((a, b) => (a.type === 'live' ? -1 : 1));
+    projects.forEach(p => {
+        let techTags = p.tech ? p.tech.split(',').map(t => `<span class="project-tech-tag">${t.trim()}</span>`).join('') : 'Not Specified';
+        
+        let linksHtml = '';
+        if (p.links) {
+            const linkArr = p.links.split(',').filter(l => l.trim().length > 0);
+            linksHtml = linkArr.map((url, i) => `<a href="${url.trim()}" target="_blank" class="project-btn-link">🔗 Resource ${i+1}</a>`).join('');
+        }
+
+        liveProjectsList.innerHTML += `
+        <div class="project-card">
+            <h4>${p.name} <span style="font-size:10px; color:${p.type === 'live' ? 'var(--color-success)' : '#888'}; border:1px solid currentColor; padding:2px 5px; border-radius:2px; vertical-align:middle;">${p.type === 'live' ? 'LIVE' : 'ARCHIVED'}</span></h4>
+            <div class="project-info"><strong>Participants:</strong> ${p.members}</div>
+            <div class="project-info" style="font-style:italic; color:#aaa; margin-bottom:10px;">"${p.purpose}"</div>
+            <div class="project-info"><strong>Tech Stack:</strong><br>${techTags}</div>
+            <div class="project-info" style="margin-top:10px;"><strong>Timeline:</strong> ${p.start} ${p.end ? 'to ' + p.end : '(Ongoing)'}</div>
+            <div class="project-actions">
+                ${linksHtml}
+            </div>
+            <button class="btn-delete-project" onclick="deleteProject(${p.id})">DELETE</button>
+        </div>`;
+    });
+}
+window.deleteProject = function(id) { if(!confirm("Delete this project from the shelf?")) return; let projects = loadProjects(); projects = projects.filter(p => p.id !== id); localStorage.setItem("cicrProjects", JSON.stringify(projects)); renderProjects(); };
+
+// --- EQUIPMENT ---
+function saveEquipment() {
+    const name = eqNameInput.value.trim(); const member = eqMemberSelect.value; const group = eqGroupInput.value.trim(); const issue = eqIssueDate.value; const ret = eqReturnDate.value;
+    if (!name || !member || !issue) { alert("Please fill Equipment Name, Member, and Issue Date."); return; }
+    operateGate(() => {
+        const logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]");
+        logs.unshift({ id: Date.now(), name, member: member.split(": ")[1] || member, group, issue, return: ret, status: "ISSUED" });
+        localStorage.setItem("cicrEquipment", JSON.stringify(logs));
+        showSuccessAnimation(); eqNameInput.value = ""; eqGroupInput.value = ""; eqMemberSelect.value = ""; renderEquipmentLogs();
+    });
+}
+
+// --- NEW REMINDER FEATURE FOR EQUIPMENT ---
+window.sendEquipmentReminder = function(id) {
+    const logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]");
+    const log = logs.find(l => l.id === id);
+    if (!log || !log.return) return alert("Error: No due date found for this item.");
+
+    const users = getStoredUsers();
+    // Find user by name to get their email
+    const memberObj = Object.values(users).find(u => u.name === log.member);
+    const email = memberObj ? memberObj.id : "";
+
+    const sub = encodeURIComponent(`URGENT: CICR Equipment Return Reminder - ${log.name}`);
+    const body = encodeURIComponent(
+        `Hello ${log.member},\n\n` +
+        `This is a reminder regarding the hardware issued to you:\n\n` +
+        `EQUIPMENT: ${log.name}\n` +
+        `DUE DATE: ${log.return}\n` +
+        `PROJECT: ${log.group}\n\n` +
+        `Please ensure the equipment is returned by tomorrow. If you need an extension, contact the Lab Head.\n\n` +
+        `Regards,\n` +
+        `CICR Inventory Management`
+    );
+
+    window.location.href = `mailto:${email}?subject=${sub}&body=${body}`;
+};
+
+function renderEquipmentLogs() {
+    const logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]"); 
+    eqLogBody.innerHTML = "";
+    if (logs.length === 0) { 
+        eqLogBody.innerHTML = '<tr><td colspan="5" style="text-align:center; opacity:0.5;">No active equipment logs.</td></tr>'; 
+        return; 
+    }
+    
+    logs.forEach(log => {
+        const isSubmitted = log.status === "SUBMITTED";
+        const isDueSoon = !isSubmitted && log.return && (new Date(log.return) - new Date() < 172800000); // Highlight within 48h
+
+        eqLogBody.innerHTML += `
+            <tr>
+                <td style="${isSubmitted ? 'opacity:0.5; text-decoration:line-through;' : 'color:var(--color-accent);'}">
+                    ${log.name}
+                    ${isDueSoon ? '<br><small style="color:var(--color-danger); font-weight:bold;">! DUE SOON</small>' : ''}
+                </td>
+                <td>${log.member}<br><small style="color:#666">${log.group}</small></td>
+                <td style="font-size:11px;">Out: ${log.issue}<br>Due: ${log.return || 'N/A'}</td>
+                <td><span style="color: ${isSubmitted ? 'var(--color-success)' : 'var(--color-tinker)'}; font-weight:bold; font-size:10px;">${log.status}</span></td>
+                <td>
+                    <div style="display:flex; gap:5px;">
+                        ${!isSubmitted ? `
+                            <button onclick="handleEqReturn(${log.id})" class="status-button" style="padding:4px 8px !important; border:1px solid var(--color-success)!important; color:var(--color-success)!important;">Return</button>
+                            <button onclick="sendEquipmentReminder(${log.id})" class="status-button" title="Send 1-Day Reminder" style="padding:4px 8px !important; border:1px solid var(--color-accent)!important; color:var(--color-accent)!important;">🔔</button>
+                        ` : `
+                            <button onclick="deleteEqLog(${log.id})" class="status-button" style="padding:4px 8px !important; border:1px solid var(--color-danger)!important; color:var(--color-danger)!important;">Del</button>
+                        `}
+                    </div>
+                </td>
+            </tr>`;
+    });
+}
+
+// RESTRICTED RETURN FUNCTION
+window.handleEqReturn = function(id) {
+    securityMessage.textContent = "Authorized Sign-off Required for Hardware Return.";
+    securityOverlay.style.display = 'flex';
+    securityPinInput.value = '';
+    securityPinInput.focus();
+    
+    pendingAction = () => {
+        let logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]"); 
+        const log = logs.find(l => l.id === id); 
+        if(log) { 
+            log.status = "SUBMITTED"; 
+            localStorage.setItem("cicrEquipment", JSON.stringify(logs)); 
+            renderEquipmentLogs();
+            showSuccessAnimation();
+        }
+    };
+};
+
+window.deleteEqLog = function(id) { if(!confirm("Delete log permanently?")) return; let logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]"); logs = logs.filter(l => l.id !== id); localStorage.setItem("cicrEquipment", JSON.stringify(logs)); renderEquipmentLogs(); };
+
+// --- CHAT ---
+function loadChat() {
+    const chat = JSON.parse(localStorage.getItem("cicrChat") || "[]"); chatDisplay.innerHTML = chat.length ? "" : `<div class="chat-message msg-other"><span class="msg-meta">SYSTEM | NOW</span>Welcome to the Secure Channel.</div>`;
+    chat.forEach(msg => { const div = document.createElement("div"); div.className = `chat-message ${msg.sender === (currentUser ? currentUser.name : 'ME') ? 'msg-self' : 'msg-other'}`; div.innerHTML = `<span class="msg-meta">${msg.sender} | ${msg.time}</span>${msg.text}`; chatDisplay.appendChild(div); });
+}
+function postMessage() {
+    const text = chatInput.value.trim(); if(!text) return;
+    const chat = JSON.parse(localStorage.getItem("cicrChat") || "[]");
+    chat.push({ sender: currentUser ? currentUser.name : "ME", text: text, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) });
+    if(chat.length > 50) chat.shift(); localStorage.setItem("cicrChat", JSON.stringify(chat)); chatInput.value = ""; loadChat(); scrollChat();
+}
+function scrollChat() { chatDisplay.scrollTop = chatDisplay.scrollHeight; }
+
+// --- DATA FUNCTIONS ---
+function loadGroups() { ALL_GROUPS = JSON.parse(localStorage.getItem("cicrGroups")) || ["4th Year", "3rd Year", "2nd Year", "1st Year", "Software", "Robotics", "Core"]; populateGroupSelects(); }
+function saveGroups() { localStorage.setItem("cicrGroups", JSON.stringify(ALL_GROUPS)); }
+function addPermanentGroup(groupName) { 
+    const trimmed = groupName.trim(); 
+    if (!trimmed) return alert("Enter group name.");
+    if (ALL_GROUPS.map(g => g.toLowerCase()).includes(trimmed.toLowerCase())) {
+        return alert("Group already exists.");
+    }
+    ALL_GROUPS.push(trimmed); 
+    saveGroups(); 
+    populateGroupSelects();
+    showSuccessAnimation();
+    return true; 
+}
+function removePermanentGroup() {
+    const group = removePermanentGroupSelect.value;
+    if(!group) return alert("Select a group to remove.");
+    if(confirm(`Permanently remove group "${group}"? This will not delete members, only the tag.`)) {
+        ALL_GROUPS = ALL_GROUPS.filter(g => g !== group);
+        saveGroups();
+        populateGroupSelects();
+        showSuccessAnimation();
+    }
+}
+
+function loadStudents() { 
+    h4_students = JSON.parse(localStorage.getItem("cicrMembers")) || DEFAULT_STUDENTS; 
+    refreshAllDropdowns();
+}
+
+function refreshAllDropdowns() {
+    populateAllMembersDatalist();
+    populateSchedulingDropdowns(); 
+    populateProjectMembersDropdown(); // NEW
+}
+
+function saveStudents() { 
+    localStorage.setItem("cicrMembers", JSON.stringify(h4_students)); 
+    refreshAllDropdowns();
+}
+
+function updateClock() { const now = new Date(); digitalClock.textContent = `${now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: '2-digit' })} | ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`; }
+
+function populateGroupSelects() {
+    if (!ALL_GROUPS || !yearSelect) return;
+    const selected = Array.from(yearSelect.selectedOptions).map(o => o.value); yearSelect.innerHTML = "";
+    ALL_GROUPS.forEach(g => { 
+        // Only add "Year" based groups to Year select
+        if(g.includes("Year")) {
+            const opt = document.createElement("option"); opt.value = g; opt.textContent = g; if (selected.includes(g)) opt.selected = true; yearSelect.appendChild(opt); 
+        }
+    });
+    if(!yearSelect.selectedOptions.length && yearSelect.options.length) { const def = Array.from(yearSelect.options).find(o => o.value === "1st Year") || yearSelect.options[0]; def.selected = true; }
+    
+    // Populate Domain Filter
+    attendanceDomainFilter.innerHTML = '<option value="ALL">All Domains</option>';
+    ALL_GROUPS.forEach(g => {
+        if(!g.includes("Year")) {
+            const opt = document.createElement("option"); opt.value = g; opt.textContent = g; attendanceDomainFilter.appendChild(opt);
+        }
+    });
+
+    newMemberGroupSelect.innerHTML = ''; 
+    ALL_GROUPS.forEach(g => { 
+        if(!g.includes("Year")) {
+            const opt = document.createElement('option'); opt.value = g; opt.textContent = g.toUpperCase(); newMemberGroupSelect.appendChild(opt); 
+        }
+    });
+    const cust = document.createElement('option'); cust.value = "Custom"; cust.textContent = "Custom Unit..."; newMemberGroupSelect.appendChild(cust);
+
+    // Populate Remove Group Select
+    removePermanentGroupSelect.innerHTML = '<option value="" disabled selected>-- Select Group to Delete --</option>';
+    ALL_GROUPS.forEach(g => {
+        if(g !== "4th Year" && g !== "3rd Year" && g !== "2nd Year" && g !== "1st Year") { // Protect Default years
+             const opt = document.createElement('option'); opt.value = g; opt.textContent = g; removePermanentGroupSelect.appendChild(opt);
+        }
+    });
+}
+
+function populateAllMembersDatalist() {
+    allMembersDatalist.innerHTML = '';
+    h4_students.forEach(s => {
+        const opt = document.createElement("option");
+        opt.value = s.includes(": ") ? s.split(": ")[1] : s;
+        allMembersDatalist.appendChild(opt);
+    });
+}
+
+function populateSchedulingDropdowns() { 
+    if (!h4_students || !scheduleRecipientSelect) return;
+    scheduleRecipientSelect.innerHTML = ''; 
+    h4_students.forEach(s => { 
+        const n = s.includes(": ") ? s.split(": ")[1] : s; 
+        const rO = document.createElement("option"); 
+        rO.value = n; 
+        rO.textContent = n; 
+        scheduleRecipientSelect.appendChild(rO); 
+    }); 
+}
+
+// NEW FUNCTION FOR PROJECT MEMBERS (Multi-select)
+function populateProjectMembersDropdown() {
+    if(!h4_students || !projectMembersSelect) return;
+    projectMembersSelect.innerHTML = '';
+    h4_students.forEach(s => {
+        const n = s.includes(": ") ? s.split(": ")[1] : s;
+        const opt = document.createElement("option");
+        opt.value = n;
+        opt.textContent = n;
+        projectMembersSelect.appendChild(opt);
+    });
+}
+
+function getMeetingTopic() { return subjectSelector.value === "Other" && customTopicInput.value.trim() !== "" ? customTopicInput.value.trim() : subjectSelector.options[subjectSelector.selectedIndex].textContent; }
+function updateSubjectDisplay() { document.getElementById("current-subject-display").textContent = getMeetingTopic(); }
+function handleTopicChange() { customTopicInput.style.display = subjectSelector.value === "Other" ? "block" : "none"; if(subjectSelector.value === "Other") customTopicInput.focus(); updateSubjectDisplay(); }
+function handleGroupChange() { document.getElementById("custom-group-input-wrapper").style.display = newMemberGroupSelect.value === "Custom" ? "block" : "none"; if(newMemberGroupSelect.value === "Custom") customGroupInput.focus(); }
+
+function addMember() {
+    const name = newMemberNameInput.value.trim();
+    const email = newMemberEmailInput.value.trim();
+    const phone = newMemberPhoneInput.value.trim();
+    const year = newMemberYearSelect.value;
+    const batch = newMemberBatchInput.value.trim();
+    const enrollment = newMemberEnrollmentInput.value.trim();
+    let domain = newMemberGroupSelect.value;
+    
+    // INPUT VALIDATION
+    if (!name || !email || !batch || !phone) return alert("Error: Name, Email, Phone, and Batch are mandatory.");
+    
+    if (!validateEmail(email)) {
+        highlightError(newMemberEmailInput);
+        alert("Invalid Email Address provided.");
+        return;
+    }
+    if (!validatePhone(phone)) {
+        highlightError(newMemberPhoneInput);
+        alert("Invalid Phone Number. Must be a 10-digit numeric value.");
+        return;
+    }
+
+    if (domain === "Custom") { domain = customGroupInput.value.trim(); if (!domain) return alert("Error: Enter custom unit name."); }
+    if (!ALL_GROUPS.includes(domain)) addPermanentGroup(domain);
+    
+    // FORMAT: "Year: Name (Domain) [Enrollment]" to keep data structured
+    const memberKey = `${year}: ${name} (${domain})${enrollment ? ' ['+enrollment+']' : ''}`;
+    
+    if (h4_students.some(s => s.toLowerCase() === memberKey.toLowerCase())) return alert(`Error: User exists.`);
+    
+    operateGate(() => {
+        h4_students.push(memberKey); h4_students.sort(); saveStudents();
+        
+        const sub = encodeURIComponent("INVITATION: Register for CICR Official Web Portal");
+        const body = encodeURIComponent(
+            `Hello ${name},\n\n` +
+            `Welcome to CICR! \n` +
+            `Domain: ${domain}\n` +
+            `Year: ${year}\n` +
+            `Batch: ${batch}\n` +
+            `Enrollment No: ${enrollment}\n\n` +
+            `1. PORTAL REGISTRATION:\n` +
+            `Please proceed to create your official account using your provided email/phone:\n` +
+            `https://www.cicr.in/\n\n` +
+            `2. WHATSAPP COMMUNITY:\n` +
+            `Join our official communication channel here:\n` +
+            `https://chat.whatsapp.com/K86rBBwgB6jBsP3am3Oatx\n\n` +
+            `Regards,\n` +
+            `CICR Management`
+        );
+        window.location.href = `mailto:${email}?subject=${sub}&body=${body}`;
+        
+        newMemberNameInput.value = ""; newMemberEmailInput.value = ""; newMemberPhoneInput.value = ""; newMemberBatchInput.value = ""; newMemberEnrollmentInput.value=""; customGroupInput.value = "";
+        showSuccessAnimation(); renderStudents();
+    });
+}
+
+function removeMember() { const m = removeMemberSelect.value; if (!m || !confirm(`Remove "${m}"?`)) return; 
+    // Need to find full string in h4_students since value is just name
+    const fullStr = h4_students.find(s => s.includes(m));
+    if(fullStr) {
+        const i = h4_students.indexOf(fullStr); if (i > -1) { h4_students.splice(i, 1); saveStudents(); alert("User removed."); } renderStudents(); 
+    } else {
+        alert("User not found in database.");
+    }
+}
+
+function renderStudents() {
+    attendanceList.innerHTML = ""; attendanceState = {}; 
+    const selYears = Array.from(yearSelect.selectedOptions).map(o => o.value);
+    const selDomain = attendanceDomainFilter.value;
+
+    const filtered = h4_students.filter(s => {
+        const [yearPart, rest] = s.split(": ");
+        const domainMatch = selDomain === "ALL" || s.includes(`(${selDomain})`);
+        return selYears.includes(yearPart) && domainMatch;
+    }).sort();
+
+    if (!filtered.length) { attendanceList.innerHTML = `<li style="padding: 15px; opacity: 0.7; color: #fff;">${selYears.length ? 'No users found matching filters.' : 'Select a Group to load.'}</li>`; updateSummary(); return; }
+    
+    filtered.forEach(s => {
+        const [r, n] = s.split(": "); 
+        attendanceState[s] = "MARK"; 
+        const id = s.replace(/[^a-zA-Z0-9]/g, "_");
+        const li = document.createElement("li"); li.className = "student-item unmarked"; li.id = id;
+        li.innerHTML = `<div class="student-info"><div class="student-name">${n}</div><div class="student-id">${r}</div></div><div class="status-controls"><button class="status-button btn-present" data-key="${s}" style="opacity: 0.4;">Present</button><button class="status-button btn-absent" data-key="${s}" style="opacity: 0.4;">Absent</button><button class="status-button btn-unmarked" data-key="${s}" style="opacity: 1.0;">Unmarked</button></div>`;
+        attendanceList.appendChild(li);
+    });
+    attendanceList.querySelectorAll(".status-button").forEach(b => b.addEventListener("click", e => {
+        const k = e.target.getAttribute("data-key"); const st = e.target.textContent.toUpperCase(); attendanceState[k] = st === "UNMARKED" ? "MARK" : st;
+        const li = document.getElementById(k.replace(/[^a-zA-Z0-9]/g, "_")); li.querySelector(".status-controls").querySelectorAll(".status-button").forEach(btn => btn.style.opacity = '0.4');
+        li.classList.remove("present", "absent", "unmarked"); if (st === "PRESENT") li.classList.add("present"); else if (st === "ABSENT") li.classList.add("absent"); else li.classList.add("unmarked");
+        e.target.style.opacity = '1.0'; updateSummary();
+    }));
+    updateSummary();
+}
+
+function updateSummary() {
+    let p = 0, a = 0, an = []; for (const k in attendanceState) { if (attendanceState[k] === "PRESENT") p++; else if (attendanceState[k] === "ABSENT") { a++; an.push(k.split(": ")[1]); } }
+    const t = Object.keys(attendanceState).length; const pct = t > 0 ? ((p / t) * 100).toFixed(1) : "0.0";
+    totalPresent.textContent = p; totalAbsent.textContent = a; presentPercentage.textContent = `${pct}%`;
+    absentListElement.textContent = an.length ? an.join(", ") : "None";
+}
+
+function saveData() {
+    const sel = Array.from(yearSelect.selectedOptions).map(o => o.value); if (!Object.keys(attendanceState).length || !sel.length || !attendanceDate.value || attendanceTakerSelect.value === "") return alert("Error: Incomplete data.");
+    if (Object.values(attendanceState).filter(s => s === "MARK").length > 0 && !confirm("Commmit with unmarked users?")) return;
+    operateGate(() => {
+        const h = JSON.parse(localStorage.getItem("attendanceHistory") || "[]");
+        h.unshift({ id: Date.now(), date: attendanceDate.value, topic: getMeetingTopic(), group: sel.join(', '), taker: attendanceTakerSelect.value, summary: meetingSummaryInput.value.trim() || "No summary.", attendance: Object.keys(attendanceState).map(k => { return { name: k.split(": ")[1], group: k.split(": ")[0], status: attendanceState[k] }; }) });
+        localStorage.setItem("attendanceHistory", JSON.stringify(h)); showSuccessAnimation(); renderStudents();
+    });
+}
+
+function renderHistory() {
+    const h = JSON.parse(localStorage.getItem("attendanceHistory") || "[]"); historyListElement.innerHTML = h.length ? "" : '<li style="padding: 15px; opacity: 0.6;">No logs.</li>';
+    removeSelectedBtn.style.display = h.length ? 'block' : 'none'; clearHistoryBtn.style.display = h.length ? 'block' : 'none';
+    h.forEach(r => {
+        const p = r.attendance.filter(a => a.status === "PRESENT").length; const t = r.attendance.filter(a => a.status !== "MARK").length;
+        const li = document.createElement("li"); li.className = "history-item";
+        li.innerHTML = `
+            <div class="history-header-wrapper">
+                <input type="checkbox" class="history-checkbox" data-id="${r.id}" style="width: auto; margin-right: 10px;">
+                <button class="history-header-btn" onclick="this.parentElement.nextElementSibling.style.display = this.parentElement.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
+                    <span>[${r.date}] ${r.topic}</span>
+                    <span style="font-weight: 700; color: var(--color-accent);">${p}/${t} (${t > 0 ? ((p/t)*100).toFixed(0) : 0}%)</span>
+                </button>
+            </div>
+            <div class="history-details" style="display:none;">
+                <p><strong>Recorder:</strong> ${r.taker}</p>
+                <p><strong>Summary:</strong> ${r.summary}</p>
+                <button onclick="exportSingleLog(${r.id})" class="btn-utility btn-export-excel" style="padding: 6px 12px; font-size: 10px; margin-bottom: 10px;">EXPORT ONLY THIS LOG</button>
+                <ul>${r.attendance.map(a => `<li style="color:${a.status === 'PRESENT' ? 'var(--color-success)' : 'var(--color-danger)'}">${a.name} [${a.status}]</li>`).join("")}</ul>
+            </div>`;
+        historyListElement.appendChild(li);
+    });
+}
+
+window.exportSingleLog = function(id) {
+    const h = JSON.parse(localStorage.getItem("attendanceHistory") || "[]");
+    const r = h.find(item => item.id === id);
+    if (!r) return;
+    let csv = "data:text/csv;charset=utf-8,Date,Topic,Group,Recorder,Summary,Student Name,Student Group,Status\n";
+    r.attendance.forEach(a => {
+        csv += `${r.date},${r.topic.replace(/,/g, " ")},${r.group.replace(/,/g, " ")},${r.taker.replace(/,/g, " ")},${r.summary.replace(/,/g, " ")},${a.name},${a.group},${a.status}\n`;
+    });
+    const link = document.createElement("a");
+    link.setAttribute("href", encodeURI(csv));
+    link.setAttribute("download", `Log_${r.topic.replace(/\s+/g, '_')}_${r.date}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
+
+function clearHistory() { if (confirm("Clear ALL?")) { localStorage.removeItem("attendanceHistory"); renderHistory(); } }
+function removeSelectedRecords() { const cb = document.querySelectorAll('.history-checkbox:checked'); if (!cb.length || !confirm("Delete selected?")) return; let h = JSON.parse(localStorage.getItem("attendanceHistory") || "[]"); const ids = Array.from(cb).map(c => parseInt(c.getAttribute('data-id'))); h = h.filter(r => !ids.includes(r.id)); localStorage.setItem("attendanceHistory", JSON.stringify(h)); renderHistory(); }
+
+function exportToCSV() { 
+    const h = JSON.parse(localStorage.getItem("attendanceHistory") || "[]"); 
+    if (!h.length) return alert("No logs available to export.");
+    const selectedCheckboxes = document.querySelectorAll('.history-checkbox:checked');
+    const selectedIds = Array.from(selectedCheckboxes).map(cb => parseInt(cb.getAttribute('data-id')));
+    const dataToExport = selectedIds.length > 0 ? h.filter(record => selectedIds.includes(record.id)) : h;
+    let csv = "data:text/csv;charset=utf-8,Date,Topic,Group,Recorder,Summary,Student Name,Student Group,Status\n"; 
+    dataToExport.forEach(r => r.attendance.forEach(a => csv += `${r.date},${r.topic.replace(/,/g, " ")},${r.group.replace(/,/g, " ")},${r.taker.replace(/,/g, " ")},${r.summary.replace(/,/g, " ")},${a.name},${a.group},${a.status}\n`)); 
+    const fileName = selectedIds.length > 0 ? "CICR_Selected_Logs.csv" : "CICR_All_Logs.csv";
+    const link = document.createElement("a"); link.setAttribute("href", encodeURI(csv)); link.setAttribute("download", fileName); document.body.appendChild(link); link.click(); document.body.removeChild(link); 
+}
+
+function calculatePersonalReport() {
+    const h = JSON.parse(localStorage.getItem("attendanceHistory") || "[]"); 
+    const rd = {}; 
+    h4_students.forEach(m => rd[m] = { total: 0, attended: 0, group: m.split(": ")[0], name: m.split(": ")[1] });
+    
+    h.forEach(r => r.attendance.forEach(a => { const k = `${a.group}: ${a.name}`; if (rd[k] && a.status !== "MARK") { rd[k].total++; if (a.status === "PRESENT") rd[k].attended++; } }));
+
+    // Helper to generate Row HTML
+    const generateRow = (d) => {
+        const pct = d.total > 0 ? ((d.attended / d.total) * 100).toFixed(1) : 0;
+        let c = d.total > 0 ? (pct >= 75 ? 'var(--color-success)' : pct >= 50 ? 'var(--color-tinker)' : 'var(--color-danger)') : '#ccc';
+        return `<tr><td>${d.name}</td><td>${d.group}</td><td style="text-align:left;"><span style="display:inline-block; width:45px; font-weight:bold; color:${c};">${d.total > 0 ? pct + "%" : "N/A"}</span><div class="analytics-progress-wrapper"><div class="analytics-progress-fill" style="width:${d.total > 0 ? pct : 0}%; background-color:${c};"></div></div></td></tr>`;
+    };
+
+    // Populate separate tables
+    ['1', '2', '3', '4'].forEach(yr => {
+        const tbody = document.getElementById(`analytics-body-${yr}`);
+        tbody.innerHTML = "";
+        Object.keys(rd).filter(k => rd[k].group.includes(yr)).sort().forEach(k => {
+             tbody.innerHTML += generateRow(rd[k]);
+        });
+        if(tbody.innerHTML === "") tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; opacity:0.5;">No data for ${yr}st/nd/rd/th Year</td></tr>`;
+    });
+}
+
+// --- MEMBER DIRECTORY FUNCTIONS ---
+function renderMemberDirectory() {
+    const grid = document.getElementById('member-directory-grid');
+    const badge = document.getElementById('member-count-badge');
+    const users = getStoredUsers();
+    grid.innerHTML = "";
+
+    const userArray = Object.values(users);
+    badge.textContent = userArray.length;
+
+    if (userArray.length === 0) {
+        grid.innerHTML = `<p style="grid-column: span 3; opacity: 0.5; text-align: center;">No registered accounts found.</p>`;
+        return;
+    }
+
+    userArray.forEach(user => {
+        const photoStyle = user.avatar ? `style="background-image: url(${user.avatar})"` : "";
+        const initial = user.name ? user.name.charAt(0) : "?";
+        
+        const card = document.createElement('div');
+        card.className = "member-card";
+        card.innerHTML = `
+            <div class="member-card-photo" ${photoStyle}>
+                ${!user.avatar ? `<span style="font-size:30px; color:var(--color-accent);">${initial}</span>` : ''}
+            </div>
+            <div class="member-card-name">${user.name}</div>
+            <div class="member-card-detail">📧 ${user.id}</div>
+            <div class="member-card-detail">🎓 ${user.year} | Enroll: ${user.enrollment || 'N/A'}</div>
+            <div class="member-card-detail" style="color:var(--color-accent); font-weight:bold; margin-top:10px;">
+                ${user.domain || 'Verified Member'}
+            </div>
+            <button class="btn-revoke-access" onclick="deleteUserAccount('${user.id}')">Revoke Access</button>
+        `;
+        grid.appendChild(card);
+    });
+}
+
+window.deleteUserAccount = function(userId) {
+    if(!confirm(`SYSTEM ALERT: You are about to permanently delete account [${userId}]. This will revoke all portal access. Proceed?`)) return;
+    
+    operateGate(() => {
+        const users = getStoredUsers();
+        if(users[userId]) {
+            delete users[userId];
+            saveStoredUsers(users);
+            showSuccessAnimation();
+            renderMemberDirectory();
+            alert("Account Permanently Deleted.");
+        }
+    });
+};
+
+function exportDirectoryCSV() {
+    const users = Object.values(getStoredUsers());
+    if (users.length === 0) return alert("No registered members to export.");
+    
+    let csv = "data:text/csv;charset=utf-8,Full Name,User ID (Email/Phone),Year,Enrollment,Domain\n";
+    users.forEach(user => {
+        csv += `"${user.name}","${user.id}","${user.year}","${user.enrollment || 'N/A'}","${user.domain || 'CORE'}"\n`;
+    });
+    
+    const link = document.createElement("a");
+    link.setAttribute("href", encodeURI(csv));
+    link.setAttribute("download", "CICR_Member_Contacts.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function initializeListeners() {
+	setInterval(updateClock, 1000); updateClock();
+    splashScreen.addEventListener('click', () => { 
+        AUDIO.play('click');
+        splashScreen.style.opacity = '0'; 
+        setTimeout(() => { splashScreen.style.display = 'none'; operateGate(() => { loginScreen.style.display = 'block'; }); }, 500); 
+    });
+	toggleAuthBtn.addEventListener("click", toggleAuthMode);
+    loginForm.addEventListener("submit", (e) => {
+		e.preventDefault(); const user = usernameInput.value.trim(); const pass = passwordInput.value.trim(); if (!user || !pass) return;
+        const u = getStoredUsers();
+        if (isRegistering) {
+            if(!isVerified) return alert("Verify OTP first."); const n = regNameInput.value.trim(); const b = regBatchInput.value.trim(); if (!n || !b) return;
+            
+            // Re-validate the ID before final reg
+            if (!validateEmail(user) && !validatePhone(user)) {
+                highlightError(usernameInput);
+                return alert("Invalid Email/Phone format.");
+            }
+
+            if (u[user]) return alert("User exists.");
+            operateGate(() => { u[user] = { id: user, password: pass, name: n, year: regYearSelect.value, batch: b }; saveStoredUsers(u); alert("Account Created."); toggleAuthMode(); });
+        } else {
+            operateGate(() => {
+                if (user === USERNAME && pass === PASSWORD) { currentUser = { id: "ADMIN", name: "Administrator" }; loginSuccess(); } 
+                else if (u[user] && u[user].password === pass) { currentUser = u[user]; loginSuccess(); } 
+                else { alert("Invalid Credentials."); }
+            });
+        }
+	});
+    function loginSuccess() {
+        AUDIO.play('success');
+        loginScreen.style.display = 'none'; document.getElementById('success-screen').style.display = 'flex'; loadUserProfile();
+        setTimeout(() => { document.getElementById('success-screen').style.display = 'none'; appContent.style.display = 'block'; loadGroups(); loadStudents(); switchTab('attendance'); }, 2000);
+    }
+    tabLinks.forEach(link => link.addEventListener('click', (e) => switchTab(e.target.getAttribute('data-tab'))));
+	yearSelect.addEventListener("change", renderStudents);
+    attendanceDomainFilter.addEventListener("change", renderStudents);
+	saveBtn.addEventListener("click", saveData);
+    exportExcelBtn.addEventListener("click", exportToCSV);
+    clearHistoryBtn.addEventListener("click", clearHistory);
+    removeSelectedBtn.addEventListener("click", removeSelectedRecords);
+    
+    addPermanentGroupBtn.addEventListener("click", () => { 
+        if(addPermanentGroup(newPermanentGroupInput.value)) { 
+            newPermanentGroupInput.value=""; 
+        } 
+    });
+    removePermanentGroupBtn.addEventListener("click", removePermanentGroup);
+
+	newMemberGroupSelect.addEventListener("change", handleGroupChange);
+	addMemberBtn.addEventListener("click", addMember);
+	removeMemberBtn.addEventListener("click", removeMember);
+    addProjectBtn.addEventListener("click", saveProject);
+    addEqBtn.addEventListener('click', saveEquipment);
+    chatSendBtn.addEventListener("click", postMessage);
+    updateProfileBtn.addEventListener("click", updateProfile);
+    logoutBtn.addEventListener("click", logout);
+    userAvatarDisplay.addEventListener("click", () => switchTab('account'));
+    profilePicInput.addEventListener('change', handleProfilePicUpload);
+    
+    // DIRECTORY LISTENERS
+    document.getElementById('directory-search').addEventListener('input', (e) => {
+        const term = e.target.value.toLowerCase();
+        document.querySelectorAll('.member-card').forEach(card => {
+            card.style.display = card.innerText.toLowerCase().includes(term) ? "block" : "none";
+        });
+    });
+    document.getElementById('export-directory-btn').addEventListener('click', exportDirectoryCSV);
+
+    // CALENDAR TRIGGERS
+    document.getElementById('open-calendar-btn').addEventListener('click', () => attendanceDate.showPicker());
+    document.getElementById('open-calendar-start-btn').addEventListener('click', () => document.getElementById('project-start').showPicker());
+    document.getElementById('open-calendar-end-btn').addEventListener('click', () => document.getElementById('project-end').showPicker());
+    document.getElementById('open-calendar-scheduler-btn').addEventListener('click', () => scheduleDateInput.showPicker());
+
+    document.addEventListener('change', (e) => {
+        if (e.target.classList.contains('history-checkbox')) {
+            const exportBtn = document.getElementById("export-excel-btn");
+            const selectedCount = document.querySelectorAll('.history-checkbox:checked').length;
+            exportBtn.textContent = selectedCount > 0 ? `Export Selected (${selectedCount})` : "Export All CSV";
+        }
+    });
+
+    // MULTIPLE EMAIL SELECTION LOGIC
+    scheduleRecipientSelect.addEventListener('change', () => {
+        const selectedOptions = Array.from(scheduleRecipientSelect.selectedOptions);
+        const emails = selectedOptions.map(opt => {
+            const users = getStoredUsers();
+            const name = opt.value;
+            const foundUser = Object.values(users).find(u => u.name === name);
+            return foundUser ? foundUser.id : `${name.toLowerCase().replace(/\s/g, '.')}@jiit.ac.in`;
+        });
+        recipientEmailInput.value = emails.join(', ');
+    });
+
+    scheduleMeetingBtn.addEventListener('click', () => {
+        const sender = senderEmailInput.value;
+        const recipients = recipientEmailInput.value;
+        const subject = encodeURIComponent(scheduleSubjectInput.value);
+        const date = scheduleDateInput.value;
+        const time = scheduleTimeInput.value;
+        const locType = scheduleLocationTypeSelect.value;
+        const locDetail = scheduleLocationDetailsInput.value;
+        
+        if(!recipients || !subject) return alert("Fill Subject and Recipients.");
+        
+        const body = encodeURIComponent(`Hello,\n\nThis is an official meeting invitation from CICR.\n\nTopic: ${scheduleSubjectInput.value}\nDate: ${date}\nTime: ${time}\nLocation: ${locType} (${locDetail})\n\nRegards,\n${scheduleInitiatorSelect.value}\nCICR Management`);
+        
+        window.location.href = `mailto:${recipients}?subject=${subject}&body=${body}`;
+        showSuccessAnimation();
+    });
+
+    loadGroups(); loadStudents();
+}
+initializeListeners();
