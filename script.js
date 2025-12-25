@@ -1,3 +1,14 @@
+// --- SUPABASE CONFIGURATION ---
+const SUPABASE_URL = 'https://euesehkwdmoghulxtbqb.supabase.co'; 
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1ZXNlaGt3ZG1vZ2h1bHh0YnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY2ODU0MDUsImV4cCI6MjA4MjI2MTQwNX0.qaktQnej49v2g2RBYyggWYrb8KGyM3YNC7yWl1yr4yo';
+
+// Safe initialization of Supabase
+const supabase = (typeof window.supabase !== 'undefined' && window.supabase.createClient) 
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) 
+    : null;
+
+if (!supabase) console.log("Supabase SDK not loaded or config missing. Running in simulation mode.");
+
 const USERNAME = "CICRMEETIN";
 const PASSWORD = "CICRMEET25";
 const SYSTEM_OWNER_EMAIL = "cicrofficial@gmail.com";
@@ -9,13 +20,6 @@ const DEFAULT_STUDENTS = [
 ];
 let h4_students = [];
 let attendanceState = {};
-// --- SUPABASE CONFIGURATION ---
-const SUPABASE_URL = 'https://euesehkwdmoghulxtbqb.supabase.co'; 
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1ZXNlaGt3ZG1vZ2h1bHh0YnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY2ODU0MDUsImV4cCI6MjA4MjI2MTQwNX0.qaktQnej49v2g2RBYyggWYrb8KGyM3YNC7yWl1yr4yo';
-const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
-
-// Console check
-if (!window.supabase) console.error("Supabase SDK not loaded. Check index.html");
 
 // VALIDATION HELPERS
 const validateEmail = (email) => {
@@ -108,7 +112,7 @@ const tabContents = document.querySelectorAll('.tab-content');
 // PROJECT ELEMENTS
 const projectNameInput = document.getElementById("project-name");
 const projectTypeSelect = document.getElementById("project-type");
-const projectMembersSelect = document.getElementById("project-members-select"); // Replaced lead select
+const projectMembersSelect = document.getElementById("project-members-select"); 
 const projectLinksInput = document.getElementById("project-links");
 const projectStartInput = document.getElementById("project-start");
 const projectEndInput = document.getElementById("project-end");
@@ -142,7 +146,7 @@ const userAvatarDisplay = document.getElementById('user-avatar-display');
 const profileIdInput = document.getElementById('profile-id');
 const profileNameInput = document.getElementById('profile-name');
 const profileYearSelect = document.getElementById('profile-year');
-const profileEnrollmentInput = document.getElementById('profile-enrollment'); // Changed from Batch
+const profileEnrollmentInput = document.getElementById('profile-enrollment');
 const updateProfileBtn = document.getElementById('update-profile-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const profilePicInput = document.getElementById('profile-pic-input');
@@ -188,7 +192,7 @@ function toggleAuthMode() {
         toggleAuthBtn.textContent = "Back to Login";
         registrationFields.style.display = 'block';
         loginError.style.display = 'none';
-        forgotLink.style.display = 'none'; 
+        if(forgotLink) forgotLink.style.display = 'none'; 
         document.getElementById('otp-section').style.display = 'block';
         otpInputWrapper.style.display = 'none';
         sendOtpBtn.style.display = 'block';
@@ -200,24 +204,25 @@ function toggleAuthMode() {
         toggleAuthBtn.textContent = "Create New Account";
         registrationFields.style.display = 'none';
         loginError.style.display = 'none';
-        forgotLink.style.display = 'block';
+        if(forgotLink) forgotLink.style.display = 'block';
     }
 }
 
-togglePasswordBtn.addEventListener('click', () => {
-    const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-    passwordInput.setAttribute('type', type);
-    const showIcon = togglePasswordBtn.querySelector('.eye-show');
-    const hideIcon = togglePasswordBtn.querySelector('.eye-hide');
-    if(type === 'password') { showIcon.style.display = 'block'; hideIcon.style.display = 'none'; }
-    else { showIcon.style.display = 'none'; hideIcon.style.display = 'block'; }
-});
+if(togglePasswordBtn) {
+    togglePasswordBtn.addEventListener('click', () => {
+        const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        passwordInput.setAttribute('type', type);
+        const showIcon = togglePasswordBtn.querySelector('.eye-show');
+        const hideIcon = togglePasswordBtn.querySelector('.eye-hide');
+        if(type === 'password') { showIcon.style.display = 'block'; hideIcon.style.display = 'none'; }
+        else { showIcon.style.display = 'none'; hideIcon.style.display = 'block'; }
+    });
+}
 
 sendOtpBtn.addEventListener('click', () => {
     const contact = usernameInput.value;
     if(!contact) { highlightError(usernameInput); alert("Enter Email/Phone first"); return; }
     
-    // Validate if it's either an email or a 10 digit phone
     if(!validateEmail(contact) && !validatePhone(contact)) {
         highlightError(usernameInput);
         alert("Please enter a valid Email Address or a 10-digit Mobile Number.");
@@ -302,7 +307,6 @@ function updateProfile() {
     });
 }
 
-// SECURITY PIN CHANGE LOGIC
 updatePinBtn.addEventListener('click', () => {
     const currentVerify = verifyPinInput.value.trim();
     const newPin = newPinInput.value.trim();
@@ -313,7 +317,6 @@ updatePinBtn.addEventListener('click', () => {
     GLOBAL_SECURITY_PIN = newPin;
     localStorage.setItem("cicr_security_pin", newPin);
     
-    // SEND MAIL PROTOCOL
     const sub = encodeURIComponent("SECURITY ALERT: System PIN Updated");
     const body = encodeURIComponent(`The CICR Portal Security PIN has been updated.\nNew Master PIN: ${newPin}\nUpdated By Admin: ${currentUser ? currentUser.name : 'Unknown User'}\n\nThis is a system generated log.`);
     window.location.href = `mailto:${SYSTEM_OWNER_EMAIL}?subject=${sub}&body=${body}`;
@@ -343,7 +346,6 @@ function showSuccessAnimation() {
     setTimeout(() => { overlay.style.display = 'none'; }, 2000); 
 }
 
-// --- BACKGROUND PARTICLES ---
 const canvas = document.getElementById('particles-canvas');
 const ctx = canvas.getContext('2d');
 let particles = [];
@@ -441,16 +443,12 @@ unlockBtn.addEventListener('click', verifySecurityPin);
 securityCancel.addEventListener('click', () => { securityOverlay.style.display = 'none'; pendingTabId = null; pendingAction = null; });
 securityPinInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') verifySecurityPin(); });
 
-// --- PROJECT SHELF ---
 function loadProjects() { return JSON.parse(localStorage.getItem("cicrProjects") || "[]"); }
 function saveProject() {
     const name = projectNameInput.value.trim();
     const type = projectTypeSelect.value;
-    
-    // NEW MULTI-SELECT LOGIC
     const selectedMembers = Array.from(projectMembersSelect.selectedOptions).map(o => o.value);
     const members = selectedMembers.join(", ");
-    
     const rawLinks = projectLinksInput.value.trim(); 
     const start = projectStartInput.value;
     const end = projectEndInput.value;
@@ -459,7 +457,6 @@ function saveProject() {
 
     if (!name || !members || !purpose) { alert("Error: Title, Members, and Purpose are required."); return; }
     
-    // ENFORCE LINKS VALIDATION
     if (rawLinks) {
         const linkArr = rawLinks.split(',').map(l => l.trim());
         for (let l of linkArr) {
@@ -488,13 +485,11 @@ function renderProjects() {
     projects.sort((a, b) => (a.type === 'live' ? -1 : 1));
     projects.forEach(p => {
         let techTags = p.tech ? p.tech.split(',').map(t => `<span class="project-tech-tag">${t.trim()}</span>`).join('') : 'Not Specified';
-        
         let linksHtml = '';
         if (p.links) {
             const linkArr = p.links.split(',').filter(l => l.trim().length > 0);
             linksHtml = linkArr.map((url, i) => `<a href="${url.trim()}" target="_blank" class="project-btn-link">🔗 Resource ${i+1}</a>`).join('');
         }
-
         liveProjectsList.innerHTML += `
         <div class="project-card">
             <h4>${p.name} <span style="font-size:10px; color:${p.type === 'live' ? 'var(--color-success)' : '#888'}; border:1px solid currentColor; padding:2px 5px; border-radius:2px; vertical-align:middle;">${p.type === 'live' ? 'LIVE' : 'ARCHIVED'}</span></h4>
@@ -502,16 +497,13 @@ function renderProjects() {
             <div class="project-info" style="font-style:italic; color:#aaa; margin-bottom:10px;">"${p.purpose}"</div>
             <div class="project-info"><strong>Tech Stack:</strong><br>${techTags}</div>
             <div class="project-info" style="margin-top:10px;"><strong>Timeline:</strong> ${p.start} ${p.end ? 'to ' + p.end : '(Ongoing)'}</div>
-            <div class="project-actions">
-                ${linksHtml}
-            </div>
+            <div class="project-actions">${linksHtml}</div>
             <button class="btn-delete-project" onclick="deleteProject(${p.id})">DELETE</button>
         </div>`;
     });
 }
 window.deleteProject = function(id) { if(!confirm("Delete this project from the shelf?")) return; let projects = loadProjects(); projects = projects.filter(p => p.id !== id); localStorage.setItem("cicrProjects", JSON.stringify(projects)); renderProjects(); };
 
-// --- EQUIPMENT ---
 function saveEquipment() {
     const name = eqNameInput.value.trim(); const member = eqMemberSelect.value; const group = eqGroupInput.value.trim(); const issue = eqIssueDate.value; const ret = eqReturnDate.value;
     if (!name || !member || !issue) { alert("Please fill Equipment Name, Member, and Issue Date."); return; }
@@ -523,89 +515,42 @@ function saveEquipment() {
     });
 }
 
-// --- NEW REMINDER FEATURE FOR EQUIPMENT ---
 window.sendEquipmentReminder = function(id) {
     const logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]");
     const log = logs.find(l => l.id === id);
     if (!log || !log.return) return alert("Error: No due date found for this item.");
-
     const users = getStoredUsers();
-    // Find user by name to get their email
     const memberObj = Object.values(users).find(u => u.name === log.member);
     const email = memberObj ? memberObj.id : "";
-
     const sub = encodeURIComponent(`URGENT: CICR Equipment Return Reminder - ${log.name}`);
-    const body = encodeURIComponent(
-        `Hello ${log.member},\n\n` +
-        `This is a reminder regarding the hardware issued to you:\n\n` +
-        `EQUIPMENT: ${log.name}\n` +
-        `DUE DATE: ${log.return}\n` +
-        `PROJECT: ${log.group}\n\n` +
-        `Please ensure the equipment is returned by tomorrow. If you need an extension, contact the Lab Head.\n\n` +
-        `Regards,\n` +
-        `CICR Inventory Management`
-    );
-
+    const body = encodeURIComponent(`Hello ${log.member},\n\nThis is a reminder regarding the hardware issued to you:\nEQUIPMENT: ${log.name}\nDUE DATE: ${log.return}\nPROJECT: ${log.group}\n\nPlease ensure the equipment is returned by tomorrow.\n\nRegards,\nCICR Inventory Management`);
     window.location.href = `mailto:${email}?subject=${sub}&body=${body}`;
 };
 
 function renderEquipmentLogs() {
     const logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]"); 
     eqLogBody.innerHTML = "";
-    if (logs.length === 0) { 
-        eqLogBody.innerHTML = '<tr><td colspan="5" style="text-align:center; opacity:0.5;">No active equipment logs.</td></tr>'; 
-        return; 
-    }
-    
+    if (logs.length === 0) { eqLogBody.innerHTML = '<tr><td colspan="5" style="text-align:center; opacity:0.5;">No active equipment logs.</td></tr>'; return; }
     logs.forEach(log => {
         const isSubmitted = log.status === "SUBMITTED";
-        const isDueSoon = !isSubmitted && log.return && (new Date(log.return) - new Date() < 172800000); // Highlight within 48h
-
-        eqLogBody.innerHTML += `
-            <tr>
-                <td style="${isSubmitted ? 'opacity:0.5; text-decoration:line-through;' : 'color:var(--color-accent);'}">
-                    ${log.name}
-                    ${isDueSoon ? '<br><small style="color:var(--color-danger); font-weight:bold;">! DUE SOON</small>' : ''}
-                </td>
-                <td>${log.member}<br><small style="color:#666">${log.group}</small></td>
-                <td style="font-size:11px;">Out: ${log.issue}<br>Due: ${log.return || 'N/A'}</td>
-                <td><span style="color: ${isSubmitted ? 'var(--color-success)' : 'var(--color-tinker)'}; font-weight:bold; font-size:10px;">${log.status}</span></td>
-                <td>
-                    <div style="display:flex; gap:5px;">
-                        ${!isSubmitted ? `
-                            <button onclick="handleEqReturn(${log.id})" class="status-button" style="padding:4px 8px !important; border:1px solid var(--color-success)!important; color:var(--color-success)!important;">Return</button>
-                            <button onclick="sendEquipmentReminder(${log.id})" class="status-button" title="Send 1-Day Reminder" style="padding:4px 8px !important; border:1px solid var(--color-accent)!important; color:var(--color-accent)!important;">🔔</button>
-                        ` : `
-                            <button onclick="deleteEqLog(${log.id})" class="status-button" style="padding:4px 8px !important; border:1px solid var(--color-danger)!important; color:var(--color-danger)!important;">Del</button>
-                        `}
-                    </div>
-                </td>
-            </tr>`;
+        const isDueSoon = !isSubmitted && log.return && (new Date(log.return) - new Date() < 172800000); 
+        eqLogBody.innerHTML += `<tr><td style="${isSubmitted ? 'opacity:0.5; text-decoration:line-through;' : 'color:var(--color-accent);'}">${log.name}${isDueSoon ? '<br><small style="color:var(--color-danger); font-weight:bold;">! DUE SOON</small>' : ''}</td><td>${log.member}<br><small style="color:#666">${log.group}</small></td><td style="font-size:11px;">Out: ${log.issue}<br>Due: ${log.return || 'N/A'}</td><td><span style="color: ${isSubmitted ? 'var(--color-success)' : 'var(--color-tinker)'}; font-weight:bold; font-size:10px;">${log.status}</span></td><td><div style="display:flex; gap:5px;">${!isSubmitted ? `<button onclick="handleEqReturn(${log.id})" class="status-button" style="padding:4px 8px !important; border:1px solid var(--color-success)!important; color:var(--color-success)!important;">Return</button><button onclick="sendEquipmentReminder(${log.id})" class="status-button" title="Send 1-Day Reminder" style="padding:4px 8px !important; border:1px solid var(--color-accent)!important; color:var(--color-accent)!important;">🔔</button>` : `<button onclick="deleteEqLog(${log.id})" class="status-button" style="padding:4px 8px !important; border:1px solid var(--color-danger)!important; color:var(--color-danger)!important;">Del</button>`}</div></td></tr>`;
     });
 }
 
-// RESTRICTED RETURN FUNCTION
 window.handleEqReturn = function(id) {
     securityMessage.textContent = "Authorized Sign-off Required for Hardware Return.";
     securityOverlay.style.display = 'flex';
     securityPinInput.value = '';
     securityPinInput.focus();
-    
     pendingAction = () => {
         let logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]"); 
         const log = logs.find(l => l.id === id); 
-        if(log) { 
-            log.status = "SUBMITTED"; 
-            localStorage.setItem("cicrEquipment", JSON.stringify(logs)); 
-            renderEquipmentLogs();
-            showSuccessAnimation();
-        }
+        if(log) { log.status = "SUBMITTED"; localStorage.setItem("cicrEquipment", JSON.stringify(logs)); renderEquipmentLogs(); showSuccessAnimation(); }
     };
 };
-
 window.deleteEqLog = function(id) { if(!confirm("Delete log permanently?")) return; let logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]"); logs = logs.filter(l => l.id !== id); localStorage.setItem("cicrEquipment", JSON.stringify(logs)); renderEquipmentLogs(); };
 
-// --- CHAT ---
 function loadChat() {
     const chat = JSON.parse(localStorage.getItem("cicrChat") || "[]"); chatDisplay.innerHTML = chat.length ? "" : `<div class="chat-message msg-other"><span class="msg-meta">SYSTEM | NOW</span>Welcome to the Secure Channel.</div>`;
     chat.forEach(msg => { const div = document.createElement("div"); div.className = `chat-message ${msg.sender === (currentUser ? currentUser.name : 'ME') ? 'msg-self' : 'msg-other'}`; div.innerHTML = `<span class="msg-meta">${msg.sender} | ${msg.time}</span>${msg.text}`; chatDisplay.appendChild(div); });
@@ -618,118 +563,54 @@ function postMessage() {
 }
 function scrollChat() { chatDisplay.scrollTop = chatDisplay.scrollHeight; }
 
-// --- DATA FUNCTIONS ---
 function loadGroups() { ALL_GROUPS = JSON.parse(localStorage.getItem("cicrGroups")) || ["4th Year", "3rd Year", "2nd Year", "1st Year", "Software", "Robotics", "Core"]; populateGroupSelects(); }
 function saveGroups() { localStorage.setItem("cicrGroups", JSON.stringify(ALL_GROUPS)); }
 function addPermanentGroup(groupName) { 
     const trimmed = groupName.trim(); 
     if (!trimmed) return alert("Enter group name.");
-    if (ALL_GROUPS.map(g => g.toLowerCase()).includes(trimmed.toLowerCase())) {
-        return alert("Group already exists.");
-    }
-    ALL_GROUPS.push(trimmed); 
-    saveGroups(); 
-    populateGroupSelects();
-    showSuccessAnimation();
-    return true; 
+    if (ALL_GROUPS.map(g => g.toLowerCase()).includes(trimmed.toLowerCase())) { return alert("Group already exists."); }
+    ALL_GROUPS.push(trimmed); saveGroups(); populateGroupSelects(); showSuccessAnimation(); return true; 
 }
 function removePermanentGroup() {
     const group = removePermanentGroupSelect.value;
     if(!group) return alert("Select a group to remove.");
     if(confirm(`Permanently remove group "${group}"? This will not delete members, only the tag.`)) {
-        ALL_GROUPS = ALL_GROUPS.filter(g => g !== group);
-        saveGroups();
-        populateGroupSelects();
-        showSuccessAnimation();
+        ALL_GROUPS = ALL_GROUPS.filter(g => g !== group); saveGroups(); populateGroupSelects(); showSuccessAnimation();
     }
 }
 
-function loadStudents() { 
-    h4_students = JSON.parse(localStorage.getItem("cicrMembers")) || DEFAULT_STUDENTS; 
-    refreshAllDropdowns();
-}
-
-function refreshAllDropdowns() {
-    populateAllMembersDatalist();
-    populateSchedulingDropdowns(); 
-    populateProjectMembersDropdown(); // NEW
-}
-
-function saveStudents() { 
-    localStorage.setItem("cicrMembers", JSON.stringify(h4_students)); 
-    refreshAllDropdowns();
-}
-
+function loadStudents() { h4_students = JSON.parse(localStorage.getItem("cicrMembers")) || DEFAULT_STUDENTS; refreshAllDropdowns(); }
+function refreshAllDropdowns() { populateAllMembersDatalist(); populateSchedulingDropdowns(); populateProjectMembersDropdown(); }
+function saveStudents() { localStorage.setItem("cicrMembers", JSON.stringify(h4_students)); refreshAllDropdowns(); }
 function updateClock() { const now = new Date(); digitalClock.textContent = `${now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: '2-digit' })} | ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`; }
 
 function populateGroupSelects() {
     if (!ALL_GROUPS || !yearSelect) return;
     const selected = Array.from(yearSelect.selectedOptions).map(o => o.value); yearSelect.innerHTML = "";
-    ALL_GROUPS.forEach(g => { 
-        // Only add "Year" based groups to Year select
-        if(g.includes("Year")) {
-            const opt = document.createElement("option"); opt.value = g; opt.textContent = g; if (selected.includes(g)) opt.selected = true; yearSelect.appendChild(opt); 
-        }
-    });
+    ALL_GROUPS.forEach(g => { if(g.includes("Year")) { const opt = document.createElement("option"); opt.value = g; opt.textContent = g; if (selected.includes(g)) opt.selected = true; yearSelect.appendChild(opt); } });
     if(!yearSelect.selectedOptions.length && yearSelect.options.length) { const def = Array.from(yearSelect.options).find(o => o.value === "1st Year") || yearSelect.options[0]; def.selected = true; }
-    
-    // Populate Domain Filter
     attendanceDomainFilter.innerHTML = '<option value="ALL">All Domains</option>';
-    ALL_GROUPS.forEach(g => {
-        if(!g.includes("Year")) {
-            const opt = document.createElement("option"); opt.value = g; opt.textContent = g; attendanceDomainFilter.appendChild(opt);
-        }
-    });
-
+    ALL_GROUPS.forEach(g => { if(!g.includes("Year")) { const opt = document.createElement("option"); opt.value = g; opt.textContent = g; attendanceDomainFilter.appendChild(opt); } });
     newMemberGroupSelect.innerHTML = ''; 
-    ALL_GROUPS.forEach(g => { 
-        if(!g.includes("Year")) {
-            const opt = document.createElement('option'); opt.value = g; opt.textContent = g.toUpperCase(); newMemberGroupSelect.appendChild(opt); 
-        }
-    });
+    ALL_GROUPS.forEach(g => { if(!g.includes("Year")) { const opt = document.createElement('option'); opt.value = g; opt.textContent = g.toUpperCase(); newMemberGroupSelect.appendChild(opt); } });
     const cust = document.createElement('option'); cust.value = "Custom"; cust.textContent = "Custom Unit..."; newMemberGroupSelect.appendChild(cust);
-
-    // Populate Remove Group Select
     removePermanentGroupSelect.innerHTML = '<option value="" disabled selected>-- Select Group to Delete --</option>';
-    ALL_GROUPS.forEach(g => {
-        if(g !== "4th Year" && g !== "3rd Year" && g !== "2nd Year" && g !== "1st Year") { // Protect Default years
-             const opt = document.createElement('option'); opt.value = g; opt.textContent = g; removePermanentGroupSelect.appendChild(opt);
-        }
-    });
+    ALL_GROUPS.forEach(g => { if(g !== "4th Year" && g !== "3rd Year" && g !== "2nd Year" && g !== "1st Year") { const opt = document.createElement('option'); opt.value = g; opt.textContent = g; removePermanentGroupSelect.appendChild(opt); } });
 }
 
 function populateAllMembersDatalist() {
     allMembersDatalist.innerHTML = '';
-    h4_students.forEach(s => {
-        const opt = document.createElement("option");
-        opt.value = s.includes(": ") ? s.split(": ")[1] : s;
-        allMembersDatalist.appendChild(opt);
-    });
+    h4_students.forEach(s => { const opt = document.createElement("option"); opt.value = s.includes(": ") ? s.split(": ")[1] : s; allMembersDatalist.appendChild(opt); });
 }
-
 function populateSchedulingDropdowns() { 
     if (!h4_students || !scheduleRecipientSelect) return;
     scheduleRecipientSelect.innerHTML = ''; 
-    h4_students.forEach(s => { 
-        const n = s.includes(": ") ? s.split(": ")[1] : s; 
-        const rO = document.createElement("option"); 
-        rO.value = n; 
-        rO.textContent = n; 
-        scheduleRecipientSelect.appendChild(rO); 
-    }); 
+    h4_students.forEach(s => { const n = s.includes(": ") ? s.split(": ")[1] : s; const rO = document.createElement("option"); rO.value = n; rO.textContent = n; scheduleRecipientSelect.appendChild(rO); }); 
 }
-
-// NEW FUNCTION FOR PROJECT MEMBERS (Multi-select)
 function populateProjectMembersDropdown() {
     if(!h4_students || !projectMembersSelect) return;
     projectMembersSelect.innerHTML = '';
-    h4_students.forEach(s => {
-        const n = s.includes(": ") ? s.split(": ")[1] : s;
-        const opt = document.createElement("option");
-        opt.value = n;
-        opt.textContent = n;
-        projectMembersSelect.appendChild(opt);
-    });
+    h4_students.forEach(s => { const n = s.includes(": ") ? s.split(": ")[1] : s; const opt = document.createElement("option"); opt.value = n; opt.textContent = n; projectMembersSelect.appendChild(opt); });
 }
 
 function getMeetingTopic() { return subjectSelector.value === "Other" && customTopicInput.value.trim() !== "" ? customTopicInput.value.trim() : subjectSelector.options[subjectSelector.selectedIndex].textContent; }
@@ -746,82 +627,39 @@ function addMember() {
     const enrollment = newMemberEnrollmentInput.value.trim();
     let domain = newMemberGroupSelect.value;
     
-    // INPUT VALIDATION
     if (!name || !email || !batch || !phone) return alert("Error: Name, Email, Phone, and Batch are mandatory.");
-    
-    if (!validateEmail(email)) {
-        highlightError(newMemberEmailInput);
-        alert("Invalid Email Address provided.");
-        return;
-    }
-    if (!validatePhone(phone)) {
-        highlightError(newMemberPhoneInput);
-        alert("Invalid Phone Number. Must be a 10-digit numeric value.");
-        return;
-    }
-
+    if (!validateEmail(email)) { highlightError(newMemberEmailInput); alert("Invalid Email Address provided."); return; }
+    if (!validatePhone(phone)) { highlightError(newMemberPhoneInput); alert("Invalid Phone Number. Must be a 10-digit numeric value."); return; }
     if (domain === "Custom") { domain = customGroupInput.value.trim(); if (!domain) return alert("Error: Enter custom unit name."); }
     if (!ALL_GROUPS.includes(domain)) addPermanentGroup(domain);
     
-    // FORMAT: "Year: Name (Domain) [Enrollment]" to keep data structured
     const memberKey = `${year}: ${name} (${domain})${enrollment ? ' ['+enrollment+']' : ''}`;
-    
     if (h4_students.some(s => s.toLowerCase() === memberKey.toLowerCase())) return alert(`Error: User exists.`);
     
     operateGate(() => {
         h4_students.push(memberKey); h4_students.sort(); saveStudents();
-        
         const sub = encodeURIComponent("INVITATION: Register for CICR Official Web Portal");
-        const body = encodeURIComponent(
-            `Hello ${name},\n\n` +
-            `Welcome to CICR! \n` +
-            `Domain: ${domain}\n` +
-            `Year: ${year}\n` +
-            `Batch: ${batch}\n` +
-            `Enrollment No: ${enrollment}\n\n` +
-            `1. PORTAL REGISTRATION:\n` +
-            `Please proceed to create your official account using your provided email/phone:\n` +
-            `https://www.cicr.in/\n\n` +
-            `2. WHATSAPP COMMUNITY:\n` +
-            `Join our official communication channel here:\n` +
-            `https://chat.whatsapp.com/K86rBBwgB6jBsP3am3Oatx\n\n` +
-            `Regards,\n` +
-            `CICR Management`
-        );
+        const body = encodeURIComponent(`Hello ${name},\n\nWelcome to CICR! \nDomain: ${domain}\nYear: ${year}\nBatch: ${batch}\nEnrollment No: ${enrollment}\n\n1. PORTAL REGISTRATION:\nPlease proceed to create your official account using your provided email/phone:\nhttps://www.cicr.in/\n\n2. WHATSAPP COMMUNITY:\nJoin our official communication channel here:\nhttps://chat.whatsapp.com/K86rBBwgB6jBsP3am3Oatx\n\nRegards,\nCICR Management`);
         window.location.href = `mailto:${email}?subject=${sub}&body=${body}`;
-        
         newMemberNameInput.value = ""; newMemberEmailInput.value = ""; newMemberPhoneInput.value = ""; newMemberBatchInput.value = ""; newMemberEnrollmentInput.value=""; customGroupInput.value = "";
         showSuccessAnimation(); renderStudents();
     });
 }
 
-function removeMember() { const m = removeMemberSelect.value; if (!m || !confirm(`Remove "${m}"?`)) return; 
-    // Need to find full string in h4_students since value is just name
+function removeMember() { 
+    const m = removeMemberSelect.value; if (!m || !confirm(`Remove "${m}"?`)) return; 
     const fullStr = h4_students.find(s => s.includes(m));
-    if(fullStr) {
-        const i = h4_students.indexOf(fullStr); if (i > -1) { h4_students.splice(i, 1); saveStudents(); alert("User removed."); } renderStudents(); 
-    } else {
-        alert("User not found in database.");
-    }
+    if(fullStr) { const i = h4_students.indexOf(fullStr); if (i > -1) { h4_students.splice(i, 1); saveStudents(); alert("User removed."); } renderStudents(); } else { alert("User not found in database."); }
 }
 
 function renderStudents() {
     attendanceList.innerHTML = ""; attendanceState = {}; 
     const selYears = Array.from(yearSelect.selectedOptions).map(o => o.value);
     const selDomain = attendanceDomainFilter.value;
-
-    const filtered = h4_students.filter(s => {
-        const [yearPart, rest] = s.split(": ");
-        const domainMatch = selDomain === "ALL" || s.includes(`(${selDomain})`);
-        return selYears.includes(yearPart) && domainMatch;
-    }).sort();
-
+    const filtered = h4_students.filter(s => { const [yearPart, rest] = s.split(": "); const domainMatch = selDomain === "ALL" || s.includes(`(${selDomain})`); return selYears.includes(yearPart) && domainMatch; }).sort();
     if (!filtered.length) { attendanceList.innerHTML = `<li style="padding: 15px; opacity: 0.7; color: #fff;">${selYears.length ? 'No users found matching filters.' : 'Select a Group to load.'}</li>`; updateSummary(); return; }
-    
     filtered.forEach(s => {
-        const [r, n] = s.split(": "); 
-        attendanceState[s] = "MARK"; 
-        const id = s.replace(/[^a-zA-Z0-9]/g, "_");
+        const [r, n] = s.split(": "); attendanceState[s] = "MARK"; const id = s.replace(/[^a-zA-Z0-9]/g, "_");
         const li = document.createElement("li"); li.className = "student-item unmarked"; li.id = id;
         li.innerHTML = `<div class="student-info"><div class="student-name">${n}</div><div class="student-id">${r}</div></div><div class="status-controls"><button class="status-button btn-present" data-key="${s}" style="opacity: 0.4;">Present</button><button class="status-button btn-absent" data-key="${s}" style="opacity: 0.4;">Absent</button><button class="status-button btn-unmarked" data-key="${s}" style="opacity: 1.0;">Unmarked</button></div>`;
         attendanceList.appendChild(li);
@@ -881,15 +719,8 @@ window.exportSingleLog = function(id) {
     const r = h.find(item => item.id === id);
     if (!r) return;
     let csv = "data:text/csv;charset=utf-8,Date,Topic,Group,Recorder,Summary,Student Name,Student Group,Status\n";
-    r.attendance.forEach(a => {
-        csv += `${r.date},${r.topic.replace(/,/g, " ")},${r.group.replace(/,/g, " ")},${r.taker.replace(/,/g, " ")},${r.summary.replace(/,/g, " ")},${a.name},${a.group},${a.status}\n`;
-    });
-    const link = document.createElement("a");
-    link.setAttribute("href", encodeURI(csv));
-    link.setAttribute("download", `Log_${r.topic.replace(/\s+/g, '_')}_${r.date}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    r.attendance.forEach(a => { csv += `${r.date},${r.topic.replace(/,/g, " ")},${r.group.replace(/,/g, " ")},${r.taker.replace(/,/g, " ")},${r.summary.replace(/,/g, " ")},${a.name},${a.group},${a.status}\n`; });
+    const link = document.createElement("a"); link.setAttribute("href", encodeURI(csv)); link.setAttribute("download", `Log_${r.topic.replace(/\s+/g, '_')}_${r.date}.csv`); document.body.appendChild(link); link.click(); document.body.removeChild(link);
 };
 
 function clearHistory() { if (confirm("Clear ALL?")) { localStorage.removeItem("attendanceHistory"); renderHistory(); } }
@@ -908,97 +739,44 @@ function exportToCSV() {
 }
 
 function calculatePersonalReport() {
-    const h = JSON.parse(localStorage.getItem("attendanceHistory") || "[]"); 
-    const rd = {}; 
-    h4_students.forEach(m => rd[m] = { total: 0, attended: 0, group: m.split(": ")[0], name: m.split(": ")[1] });
-    
+    const h = JSON.parse(localStorage.getItem("attendanceHistory") || "[]"); const rd = {}; h4_students.forEach(m => rd[m] = { total: 0, attended: 0, group: m.split(": ")[0], name: m.split(": ")[1] });
     h.forEach(r => r.attendance.forEach(a => { const k = `${a.group}: ${a.name}`; if (rd[k] && a.status !== "MARK") { rd[k].total++; if (a.status === "PRESENT") rd[k].attended++; } }));
-
-    // Helper to generate Row HTML
     const generateRow = (d) => {
         const pct = d.total > 0 ? ((d.attended / d.total) * 100).toFixed(1) : 0;
         let c = d.total > 0 ? (pct >= 75 ? 'var(--color-success)' : pct >= 50 ? 'var(--color-tinker)' : 'var(--color-danger)') : '#ccc';
         return `<tr><td>${d.name}</td><td>${d.group}</td><td style="text-align:left;"><span style="display:inline-block; width:45px; font-weight:bold; color:${c};">${d.total > 0 ? pct + "%" : "N/A"}</span><div class="analytics-progress-wrapper"><div class="analytics-progress-fill" style="width:${d.total > 0 ? pct : 0}%; background-color:${c};"></div></div></td></tr>`;
     };
-
-    // Populate separate tables
-    ['1', '2', '3', '4'].forEach(yr => {
-        const tbody = document.getElementById(`analytics-body-${yr}`);
-        tbody.innerHTML = "";
-        Object.keys(rd).filter(k => rd[k].group.includes(yr)).sort().forEach(k => {
-             tbody.innerHTML += generateRow(rd[k]);
-        });
-        if(tbody.innerHTML === "") tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; opacity:0.5;">No data for ${yr}st/nd/rd/th Year</td></tr>`;
-    });
+    ['1', '2', '3', '4'].forEach(yr => { const tbody = document.getElementById(`analytics-body-${yr}`); tbody.innerHTML = ""; Object.keys(rd).filter(k => rd[k].group.includes(yr)).sort().forEach(k => { tbody.innerHTML += generateRow(rd[k]); }); if(tbody.innerHTML === "") tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; opacity:0.5;">No data for ${yr}st/nd/rd/th Year</td></tr>`; });
 }
 
-// --- MEMBER DIRECTORY FUNCTIONS ---
 function renderMemberDirectory() {
     const grid = document.getElementById('member-directory-grid');
     const badge = document.getElementById('member-count-badge');
     const users = getStoredUsers();
     grid.innerHTML = "";
-
     const userArray = Object.values(users);
     badge.textContent = userArray.length;
-
-    if (userArray.length === 0) {
-        grid.innerHTML = `<p style="grid-column: span 3; opacity: 0.5; text-align: center;">No registered accounts found.</p>`;
-        return;
-    }
-
+    if (userArray.length === 0) { grid.innerHTML = `<p style="grid-column: span 3; opacity: 0.5; text-align: center;">No registered accounts found.</p>`; return; }
     userArray.forEach(user => {
         const photoStyle = user.avatar ? `style="background-image: url(${user.avatar})"` : "";
         const initial = user.name ? user.name.charAt(0) : "?";
-        
-        const card = document.createElement('div');
-        card.className = "member-card";
-        card.innerHTML = `
-            <div class="member-card-photo" ${photoStyle}>
-                ${!user.avatar ? `<span style="font-size:30px; color:var(--color-accent);">${initial}</span>` : ''}
-            </div>
-            <div class="member-card-name">${user.name}</div>
-            <div class="member-card-detail">📧 ${user.id}</div>
-            <div class="member-card-detail">🎓 ${user.year} | Enroll: ${user.enrollment || 'N/A'}</div>
-            <div class="member-card-detail" style="color:var(--color-accent); font-weight:bold; margin-top:10px;">
-                ${user.domain || 'Verified Member'}
-            </div>
-            <button class="btn-revoke-access" onclick="deleteUserAccount('${user.id}')">Revoke Access</button>
-        `;
+        const card = document.createElement('div'); card.className = "member-card";
+        card.innerHTML = `<div class="member-card-photo" ${photoStyle}>${!user.avatar ? `<span style="font-size:30px; color:var(--color-accent);">${initial}</span>` : ''}</div><div class="member-card-name">${user.name}</div><div class="member-card-detail">📧 ${user.id}</div><div class="member-card-detail">🎓 ${user.year} | Enroll: ${user.enrollment || 'N/A'}</div><div class="member-card-detail" style="color:var(--color-accent); font-weight:bold; margin-top:10px;">${user.domain || 'Verified Member'}</div><button class="btn-revoke-access" onclick="deleteUserAccount('${user.id}')">Revoke Access</button>`;
         grid.appendChild(card);
     });
 }
 
 window.deleteUserAccount = function(userId) {
     if(!confirm(`SYSTEM ALERT: You are about to permanently delete account [${userId}]. This will revoke all portal access. Proceed?`)) return;
-    
-    operateGate(() => {
-        const users = getStoredUsers();
-        if(users[userId]) {
-            delete users[userId];
-            saveStoredUsers(users);
-            showSuccessAnimation();
-            renderMemberDirectory();
-            alert("Account Permanently Deleted.");
-        }
-    });
+    operateGate(() => { const users = getStoredUsers(); if(users[userId]) { delete users[userId]; saveStoredUsers(users); showSuccessAnimation(); renderMemberDirectory(); alert("Account Permanently Deleted."); } });
 };
 
 function exportDirectoryCSV() {
     const users = Object.values(getStoredUsers());
     if (users.length === 0) return alert("No registered members to export.");
-    
     let csv = "data:text/csv;charset=utf-8,Full Name,User ID (Email/Phone),Year,Enrollment,Domain\n";
-    users.forEach(user => {
-        csv += `"${user.name}","${user.id}","${user.year}","${user.enrollment || 'N/A'}","${user.domain || 'CORE'}"\n`;
-    });
-    
-    const link = document.createElement("a");
-    link.setAttribute("href", encodeURI(csv));
-    link.setAttribute("download", "CICR_Member_Contacts.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    users.forEach(user => { csv += `"${user.name}","${user.id}","${user.year}","${user.enrollment || 'N/A'}","${user.domain || 'CORE'}"\n`; });
+    const link = document.createElement("a"); link.setAttribute("href", encodeURI(csv)); link.setAttribute("download", "CICR_Member_Contacts.csv"); document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
 
 function initializeListeners() {
@@ -1014,13 +792,7 @@ function initializeListeners() {
         const u = getStoredUsers();
         if (isRegistering) {
             if(!isVerified) return alert("Verify OTP first."); const n = regNameInput.value.trim(); const b = regBatchInput.value.trim(); if (!n || !b) return;
-            
-            // Re-validate the ID before final reg
-            if (!validateEmail(user) && !validatePhone(user)) {
-                highlightError(usernameInput);
-                return alert("Invalid Email/Phone format.");
-            }
-
+            if (!validateEmail(user) && !validatePhone(user)) { highlightError(usernameInput); return alert("Invalid Email/Phone format."); }
             if (u[user]) return alert("User exists.");
             operateGate(() => { u[user] = { id: user, password: pass, name: n, year: regYearSelect.value, batch: b }; saveStoredUsers(u); alert("Account Created."); toggleAuthMode(); });
         } else {
@@ -1043,14 +815,8 @@ function initializeListeners() {
     exportExcelBtn.addEventListener("click", exportToCSV);
     clearHistoryBtn.addEventListener("click", clearHistory);
     removeSelectedBtn.addEventListener("click", removeSelectedRecords);
-    
-    addPermanentGroupBtn.addEventListener("click", () => { 
-        if(addPermanentGroup(newPermanentGroupInput.value)) { 
-            newPermanentGroupInput.value=""; 
-        } 
-    });
+    addPermanentGroupBtn.addEventListener("click", () => { if(addPermanentGroup(newPermanentGroupInput.value)) { newPermanentGroupInput.value=""; } });
     removePermanentGroupBtn.addEventListener("click", removePermanentGroup);
-
 	newMemberGroupSelect.addEventListener("change", handleGroupChange);
 	addMemberBtn.addEventListener("click", addMember);
 	removeMemberBtn.addEventListener("click", removeMember);
@@ -1061,58 +827,25 @@ function initializeListeners() {
     logoutBtn.addEventListener("click", logout);
     userAvatarDisplay.addEventListener("click", () => switchTab('account'));
     profilePicInput.addEventListener('change', handleProfilePicUpload);
-    
-    // DIRECTORY LISTENERS
-    document.getElementById('directory-search').addEventListener('input', (e) => {
-        const term = e.target.value.toLowerCase();
-        document.querySelectorAll('.member-card').forEach(card => {
-            card.style.display = card.innerText.toLowerCase().includes(term) ? "block" : "none";
-        });
-    });
+    document.getElementById('directory-search').addEventListener('input', (e) => { const term = e.target.value.toLowerCase(); document.querySelectorAll('.member-card').forEach(card => { card.style.display = card.innerText.toLowerCase().includes(term) ? "block" : "none"; }); });
     document.getElementById('export-directory-btn').addEventListener('click', exportDirectoryCSV);
-
-    // CALENDAR TRIGGERS
     document.getElementById('open-calendar-btn').addEventListener('click', () => attendanceDate.showPicker());
     document.getElementById('open-calendar-start-btn').addEventListener('click', () => document.getElementById('project-start').showPicker());
     document.getElementById('open-calendar-end-btn').addEventListener('click', () => document.getElementById('project-end').showPicker());
     document.getElementById('open-calendar-scheduler-btn').addEventListener('click', () => scheduleDateInput.showPicker());
-
-    document.addEventListener('change', (e) => {
-        if (e.target.classList.contains('history-checkbox')) {
-            const exportBtn = document.getElementById("export-excel-btn");
-            const selectedCount = document.querySelectorAll('.history-checkbox:checked').length;
-            exportBtn.textContent = selectedCount > 0 ? `Export Selected (${selectedCount})` : "Export All CSV";
-        }
-    });
-
-    // MULTIPLE EMAIL SELECTION LOGIC
+    document.addEventListener('change', (e) => { if (e.target.classList.contains('history-checkbox')) { const exportBtn = document.getElementById("export-excel-btn"); const selectedCount = document.querySelectorAll('.history-checkbox:checked').length; exportBtn.textContent = selectedCount > 0 ? `Export Selected (${selectedCount})` : "Export All CSV"; } });
     scheduleRecipientSelect.addEventListener('change', () => {
         const selectedOptions = Array.from(scheduleRecipientSelect.selectedOptions);
-        const emails = selectedOptions.map(opt => {
-            const users = getStoredUsers();
-            const name = opt.value;
-            const foundUser = Object.values(users).find(u => u.name === name);
-            return foundUser ? foundUser.id : `${name.toLowerCase().replace(/\s/g, '.')}@jiit.ac.in`;
-        });
+        const emails = selectedOptions.map(opt => { const users = getStoredUsers(); const name = opt.value; const foundUser = Object.values(users).find(u => u.name === name); return foundUser ? foundUser.id : `${name.toLowerCase().replace(/\s/g, '.')}@jiit.ac.in`; });
         recipientEmailInput.value = emails.join(', ');
     });
-
     scheduleMeetingBtn.addEventListener('click', () => {
-        const sender = senderEmailInput.value;
-        const recipients = recipientEmailInput.value;
-        const subject = encodeURIComponent(scheduleSubjectInput.value);
-        const date = scheduleDateInput.value;
-        const time = scheduleTimeInput.value;
-        const locType = scheduleLocationTypeSelect.value;
-        const locDetail = scheduleLocationDetailsInput.value;
-        
+        const recipients = recipientEmailInput.value; const subject = encodeURIComponent(scheduleSubjectInput.value);
         if(!recipients || !subject) return alert("Fill Subject and Recipients.");
-        
-        const body = encodeURIComponent(`Hello,\n\nThis is an official meeting invitation from CICR.\n\nTopic: ${scheduleSubjectInput.value}\nDate: ${date}\nTime: ${time}\nLocation: ${locType} (${locDetail})\n\nRegards,\n${scheduleInitiatorSelect.value}\nCICR Management`);
-        
-        window.location.href = `mailto:${recipients}?subject=${subject}&body=${body}`;
-        showSuccessAnimation();
+        const body = encodeURIComponent(`Hello,\n\nThis is an official meeting invitation from CICR.\n\nTopic: ${scheduleSubjectInput.value}\nDate: ${scheduleDateInput.value}\nTime: ${scheduleTimeInput.value}\nLocation: ${scheduleLocationTypeSelect.value} (${scheduleLocationDetailsInput.value})\n\nRegards,\n${scheduleInitiatorSelect.value}\nCICR Management`);
+        window.location.href = `mailto:${recipients}?subject=${subject}&body=${body}`; showSuccessAnimation();
     });
+
     // --- FORGOT PASSWORD LOGIC ---
     const forgotTrigger = document.getElementById('forgot-password-trigger');
     const forgotSection = document.getElementById('forgot-password-section');
@@ -1146,31 +879,17 @@ function initializeListeners() {
             sendResetBtn.textContent = "SENDING...";
             sendResetBtn.disabled = true;
 
-            // SUPABASE PASSWORD RESET
             if (supabase) {
-                const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-                    redirectTo: window.location.href, // Redirects back here after clicking email link
-                });
-
-                if (error) {
-                    resetStatus.textContent = "Error: " + error.message;
-                    resetStatus.style.color = "var(--color-danger)";
-                } else {
-                    resetStatus.textContent = "Reset link sent! Check your email.";
-                    resetStatus.style.color = "var(--color-success)";
-                }
+                const { data, error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
+                if (error) { resetStatus.textContent = "Error: " + error.message; resetStatus.style.color = "var(--color-danger)"; } 
+                else { resetStatus.textContent = "Reset link sent! Check your email."; resetStatus.style.color = "var(--color-success)"; }
             } else {
-                // Fallback for simulation if keys aren't set yet
-                setTimeout(() => {
-                    resetStatus.textContent = "[SIMULATION] Reset link sent to " + email;
-                    resetStatus.style.color = "var(--color-accent)";
-                }, 1000);
+                setTimeout(() => { resetStatus.textContent = "[SIMULATION] Reset link sent to " + email; resetStatus.style.color = "var(--color-accent)"; }, 1000);
             }
-
-            sendResetBtn.textContent = "SEND RESET LINK";
-            sendResetBtn.disabled = false;
+            sendResetBtn.textContent = "SEND RESET LINK"; sendResetBtn.disabled = false;
         });
     }
+
     loadGroups(); loadStudents();
 }
 initializeListeners();
