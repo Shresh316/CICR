@@ -969,4 +969,4 @@ function initializeListeners() {
 
     loadGroups(); loadStudents();
 }
-initializeListeners():
+initializeListeners();
