@@ -1,16 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CICR Management Portal</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CICR Management Portal</title>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
-    
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+
 </head>
 <body>
 
@@ -42,12 +41,6 @@
     <p class="tap-hint">[ TAP TO INITIALIZE SYSTEM ]</p>
 </div>
 
-<div id="success-screen" style="display: none;">
-    <div class="success-icon">🔓</div>
-    <div class="success-text">ACCESS GRANTED<br><span style="color:white; font-size: 20px;">WELCOME MEMBER</span></div>
-    <div class="success-subtext">ENTERING COMMAND CENTER...</div>
-</div>
-
 <div id="action-success-overlay">
     <div class="success-container">
         <span class="robot-emoji">🤖</span>
@@ -61,8 +54,6 @@
 		<img src="https://i.pinimg.com/736x/67/0e/af/670eaf4523e896c4e587bc2b87ab0f4a.jpg" alt="Logo" class="header-logo header-logo-left">
 		<img src="https://i.pinimg.com/736x/67/0e/af/670eaf4523e896c4e587bc2b87ab0f4a.jpg" alt="Logo" class="header-logo header-logo-right">
 		
-        <div id="user-avatar-display" title="My Profile">?</div>
-
 		<h1>CICR <span>MANAGEMENT</span> PORTAL</h1>
         <p style="margin:0; font-size:14px; color: var(--color-accent-dim); letter-spacing: 1px; font-weight:600;">CENTRE FOR INNOVATION & CREATIVITY IN ROBOTICS</p>
 		
@@ -74,82 +65,7 @@
 		<div id="digital-clock">Loading...</div>
 	</div>
 
-	<div id="login-screen" style="display: none;">
-		<div id="login-form-card" class="energy-frame">
-            <img src="https://i.pinimg.com/736x/67/0e/af/670eaf4523e896c4e587bc2b87ab0f4a.jpg" alt="CICR Login Logo" class="login-logo-img">
-            
-			<h2 id="auth-title">CICR MEMBER ACCESS</h2>
-			
-            <form id="login-form">
-				<div>
-					<label for="username" id="label-user">Email or Phone No.</label>
-					<input type="text" id="username" required placeholder="Enter Email/Phone (or Master ID)">
-				</div>
-                
-                <div id="registration-fields">
-                    <div id="otp-section">
-                        <label style="color:var(--color-accent);">VERIFICATION REQUIRED</label>
-                        <button type="button" id="send-otp-btn" style="width:100%;">SEND OTP TO CONTACT</button>
-                        <div id="otp-input-wrapper">
-                            <input type="text" id="otp-input" placeholder="Enter 6-Digit Code" style="text-align:center; letter-spacing:5px;">
-                            <button type="button" id="verify-otp-btn" style="width:100%; margin-top:5px;">VERIFY CODE</button>
-                        </div>
-                        <p id="otp-status"></p>
-                    </div>
-
-                    <div style="margin-bottom: 20px;">
-                        <label for="reg-name">Full Name</label>
-                        <input type="text" id="reg-name" placeholder="Your Name">
-                    </div>
-                    <div style="margin-bottom: 20px;">
-                        <label for="reg-year">Year</label>
-                        <select id="reg-year">
-                            <option value="1st Year">1st Year</option>
-                            <option value="2nd Year">2nd Year</option>
-                            <option value="3rd Year">3rd Year</option>
-                            <option value="4th Year">4th Year</option>
-                        </select>
-                    </div>
-                    <div style="margin-bottom: 20px;">
-                        <label for="reg-batch">Batch</label>
-                        <input type="text" id="reg-batch" placeholder="e.g. B14">
-                    </div>
-                </div>
-
-				<div style="position: relative;">
-					<label for="password">Password</label>
-                    <div class="password-wrapper">
-					    <input type="password" id="password" required placeholder="Enter Password" style="padding-right: 40px; font-family: 'Verdana', sans-serif;">
-                        <div id="toggle-password" class="password-toggle-icon">
-                            <svg class="eye-show" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
-                            <svg class="eye-hide" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="display:none;" width="20" height="20" fill="white"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        </div>
-                    </div>
-				</div>
-                <div style="text-align: right; display:flex; justify-content:space-between; margin-top:5px;">
-                    <span id="toggle-auth-btn" class="toggle-auth-link">Create New Account</span>
-				    <span class="forgot-password-link" id="forgot-password-trigger" style="cursor:pointer; text-decoration: underline;">Forgot Password?</span>
-                </div>
-				<button type="submit" id="login-btn">LOGIN</button>
-			</form>
-            
-            <div id="forgot-password-section" style="display: none;">
-                <h3 style="color:var(--color-accent-dim); margin-bottom:10px;">RESET PASSWORD</h3>
-                <p style="font-size:12px; color:#ccc; margin-bottom:15px;">Enter your registered email address. We will send you a secure password reset link.</p>
-                <div>
-                    <label for="reset-email">Registered Email</label>
-                    <input type="email" id="reset-email" placeholder="name@example.com">
-                </div>
-                <button id="send-reset-btn" style="width:100%; margin-top:15px;">SEND RESET LINK</button>
-                <button id="back-to-login-btn" style="width:100%; margin-top:10px; background:transparent; border:1px solid #333; color:#888;">CANCEL</button>
-                <p id="reset-status" style="margin-top:10px; font-size:12px;"></p>
-            </div>
-
-			<p id="login-error" style="color:var(--color-danger); margin-top:15px; display:none; font-size:13px; font-weight:600;">ACCESS DENIED. INVALID CREDENTIALS.</p>
-		</div>
-	</div>
-    
-	<div id="app-content" style="display: none;">
+    <div id="app-content" style="display: none;">
         <nav class="tab-navigation" role="tablist">
             <a class="tab-link active" data-tab="attendance" role="tab" aria-selected="true">ATTENDANCE</a>
             <a class="tab-link" data-tab="history" role="tab" aria-selected="false">LOGS</a>
@@ -161,7 +77,6 @@
             <a class="tab-link" data-tab="admin" role="tab" aria-selected="false">ADMIN</a>
             <a class="tab-link" data-tab="directory" role="tab" aria-selected="false">MEMBER BASE</a>
             <a class="tab-link" data-tab="about" role="tab" aria-selected="false">ABOUT CICR</a>
-            <a class="tab-link" data-tab="account" role="tab" aria-selected="false">MY ACCOUNT</a>
         </nav>
 
 		<div class="main-content">
@@ -198,7 +113,7 @@
                             <input list="all-members-datalist" id="attendance-taker-select" placeholder="Type member name...">
 						</div>
 						<div>
-							<label for="year-select">Year Filter (Multiple)</label>
+							<label for="year-select">Year Filter (Select Multiple)</label>
 							<select id="year-select" multiple size="4"></select>
 						</div>
                         <div>
@@ -510,7 +425,7 @@
 
                         <div class="member-control-grid" style="margin-top:30px; border-top:1px solid #333; padding-top:20px;">
                             <div class="full-span">
-                                <h3>Unit / Group Hierarchy Management</h3>
+                                <h3 style="color:var(--color-danger);">Unit / Group Hierarchy Management</h3>
                                 <label>Add New Permanent Group/Unit</label>
                                 <div style="display:flex; gap:10px; margin-bottom: 20px;">
                                     <input type="text" id="new-permanent-group" placeholder="e.g. Research Subunit Beta">
@@ -641,61 +556,17 @@
                     </div>
                 </div>
             </section>
-
-            <section id="account-content" class="tab-content" role="tabpanel">
-                <div class="energy-frame">
-                    <h2>My Profile</h2>
-                    <div class="profile-grid">
-                        <div class="full-span" style="text-align:center;">
-                            <div style="width: 100px; height: 100px; margin: 0 auto 10px; border-radius:50%; border:2px solid var(--color-accent); overflow:hidden; position:relative;">
-                                <div id="profile-preview" style="width:100%; height:100%; background:#222; background-size:cover; background-position:center;"></div>
-                            </div>
-                            <label for="profile-pic-input" style="cursor:pointer; color:var(--color-accent); text-decoration:underline;">Upload Photo</label>
-                            <input type="file" id="profile-pic-input" accept="image/*" style="display:none;">
-                        </div>
-
-                        <div>
-                            <label>User ID (Email/Phone)</label>
-                            <input type="text" id="profile-id" disabled style="opacity: 0.6;">
-                        </div>
-                        <div>
-                            <label>Full Name</label>
-                            <input type="text" id="profile-name">
-                        </div>
-                        <div>
-                            <label>Year</label>
-                            <select id="profile-year">
-                                <option value="1st Year">1st Year</option>
-                                <option value="2nd Year">2nd Year</option>
-                                <option value="3rd Year">3rd Year</option>
-                                <option value="4th Year">4th Year</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label>Enrollment No.</label>
-                            <input type="text" id="profile-enrollment">
-                        </div>
-                        <div class="full-span" style="margin-top: 10px;">
-                            <button id="update-profile-btn">Save Changes</button>
-                        </div>
-
-                        <div class="full-span" style="border-top: 1px solid #333; margin-top: 20px; padding-top: 20px;">
-                            <button id="logout-btn">LOGOUT</button>
-                        </div>
-                    </div>
-                </div>
-            </section>
 		</div>
 
         <div class="dev-footer">
             <h3>SYSTEM DEVELOPERS</h3>
             <div class="dev-container">
-                <a href="https://www.instagram.com/iamshauryaaa.__?igsh=N3oyOWkxeXB5dHpw" target="_blank" class="dev-link">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Instagram_logo_2016.svg/2048px-Instagram_logo_2016.svg.png" alt="Insta" class="insta-logo-small">
+                <a href="https://www.linkedin.com/in/kumar-shaurya-31aa582a0?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app" class="dev-link">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/LinkedIn_logo_initials.png/960px-LinkedIn_logo_initials.png" alt="LinkedIn" class="insta-logo-small">
                     KUMAR SHAURYA
                 </a>
-                <a href="https://www.instagram.com/shreshtha8994?igsh=NTlsdmd3c21samtv" target="_blank" class="dev-link">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Instagram_logo_2016.svg/2048px-Instagram_logo_2016.svg.png" alt="Insta" class="insta-logo-small">
+                <a href="https://www.linkedin.com/in/shreshtha-gupta-39749a308/" target="_blank" class="dev-link">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/LinkedIn_logo_initials.png/960px-LinkedIn_logo_initials.png" alt="LinkedIn" class="insta-logo-small">
                     SHRESTHA GUPTA
                 </a>
                
@@ -707,7 +578,7 @@
 			<p>© 2025 CICR. All rights reserved.</p>
 		</footer>
 	</div>
-	</div>
+</div>
 
 <script src="script.js"></script>
 </body>
