@@ -218,7 +218,6 @@ button { cursor: pointer; font-family: var(--font-heading); }
     text-decoration: underline;
     cursor: pointer;
 }
-
 /* --- SPLASH SCREEN --- */
 #splash-screen {
     position: fixed;
@@ -227,7 +226,7 @@ button { cursor: pointer; font-family: var(--font-heading); }
     width: 100%;
     height: 100%;
     background-color: var(--color-bg-deep);
-    z-index: 9999;
+    z-index: 30000; /* CHANGED FROM 9999 TO 30000 */
     display: flex;
     flex-direction: column;
     justify-content: center;
