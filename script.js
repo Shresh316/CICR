@@ -457,17 +457,60 @@ unlockBtn.addEventListener('click', verifySecurityPin); securityCancel.addEventL
 securityPinInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') verifySecurityPin(); });
 
 // --- ATTENDANCE & HISTORY (LOCAL STORAGE FOR NOW) ---
-function renderHistory() {
+// --- NEW renderHistory (Supabase) ---
+async function renderHistory() {
     const list = document.getElementById("history-list");
-    const logs = JSON.parse(localStorage.getItem("attendanceHistory") || "[]");
+    // Show loading state
+    list.innerHTML = '<li style="padding:20px; text-align:center; opacity:0.6;">Loading records...</li>';
+    
+    // Fetch from Supabase
+    const { data: logs, error } = await supabaseClient
+        .from('attendance_logs')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error("Error loading history:", error);
+        list.innerHTML = '<li style="padding:20px; text-align:center; color:var(--color-danger);">Error loading data.</li>';
+        return;
+    }
+
     list.innerHTML = "";
-    if (logs.length === 0) { list.innerHTML = '<li style="padding:20px; text-align:center; opacity:0.6;">No attendance records found.</li>'; return; }
+    if (!logs || logs.length === 0) { 
+        list.innerHTML = '<li style="padding:20px; text-align:center; opacity:0.6;">No attendance records found.</li>'; 
+        return; 
+    }
+    
     logs.forEach(log => {
-        const li = document.createElement("li"); li.className = "history-item";
-        const presentCount = log.attendance.filter(s => s.status === "PRESENT").length;
-        const totalCount = log.attendance.length;
+        // Map DB JSONB 'attendance_data' to the UI's expected 'attendance' list
+        const attendanceList = log.attendance_data; 
+        
+        const presentCount = attendanceList.filter(s => s.status === "PRESENT").length;
+        const totalCount = attendanceList.length;
         const percent = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
-        li.innerHTML = `<div class="history-header-wrapper"><div style="display:flex; align-items:center;"><input type="checkbox" class="history-checkbox" value="${log.id}"><div class="history-info" onclick="toggleHistoryDetail(${log.id})" style="cursor:pointer;"><span class="history-title">${log.topic}</span><span class="history-date">${log.date}</span><span class="history-meta">${presentCount}/${totalCount} Present (${percent}%)</span></div></div><button class="btn-utility" style="padding:5px 10px; font-size:10px;" onclick="toggleHistoryDetail(${log.id})">EXPAND</button></div><div id="history-detail-${log.id}" class="history-details"><h4 style="color:#fff; margin-bottom:10px; border-bottom:1px solid #333; padding-bottom:5px;">Attendance Sheet</h4><div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:5px;">${log.attendance.map(s => `<div style="font-size:11px; color:${s.status==='PRESENT'?'var(--color-success)':'var(--color-danger)'}">${s.name}</div>`).join('')}</div></div>`;
+        
+        const li = document.createElement("li"); 
+        li.className = "history-item";
+        
+        // Note: passing ID as string '${log.id}' for UUID compatibility
+        li.innerHTML = `
+            <div class="history-header-wrapper">
+                <div style="display:flex; align-items:center;">
+                    <input type="checkbox" class="history-checkbox" value="${log.id}">
+                    <div class="history-info" onclick="toggleHistoryDetail('${log.id}')" style="cursor:pointer;">
+                        <span class="history-title">${log.topic}</span>
+                        <span class="history-date">${log.date}</span>
+                        <span class="history-meta">${presentCount}/${totalCount} Present (${percent}%)</span>
+                    </div>
+                </div>
+                <button class="btn-utility" style="padding:5px 10px; font-size:10px;" onclick="toggleHistoryDetail('${log.id}')">EXPAND</button>
+            </div>
+            <div id="history-detail-${log.id}" class="history-details">
+                <h4 style="color:#fff; margin-bottom:10px; border-bottom:1px solid #333; padding-bottom:5px;">Attendance Sheet</h4>
+                <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:5px;">
+                    ${attendanceList.map(s => `<div style="font-size:11px; color:${s.status==='PRESENT'?'var(--color-success)':'var(--color-danger)'}">${s.name}</div>`).join('')}
+                </div>
+            </div>`;
         list.appendChild(li);
     });
 }
@@ -482,16 +525,48 @@ document.getElementById('remove-selected-btn').addEventListener('click', () => {
         localStorage.setItem("attendanceHistory", JSON.stringify(logs)); renderHistory();
     }
 });
-document.getElementById('export-excel-btn').addEventListener('click', () => {
-    const logs = JSON.parse(localStorage.getItem("attendanceHistory") || "[]");
-    exportLogsToCSV(logs, 'cicr_all_attendance.csv');
+// --- NEW Export Logic (Supabase) ---
+
+// 1. Export All
+document.getElementById('export-excel-btn').addEventListener('click', async () => {
+    const { data: logs, error } = await supabaseClient
+        .from('attendance_logs')
+        .select('*')
+        .order('date', { ascending: false });
+        
+    if(error) return alert("Export failed: " + error.message);
+    
+    // Map DB structure to Export function structure
+    const formattedLogs = logs.map(l => ({
+        date: l.date,
+        topic: l.topic,
+        attendance: l.attendance_data
+    }));
+    
+    exportLogsToCSV(formattedLogs, 'cicr_all_attendance.csv');
 });
-document.getElementById('export-selected-btn').addEventListener('click', () => {
-    const selectedIds = Array.from(document.querySelectorAll('.history-checkbox:checked')).map(cb => parseInt(cb.value));
+
+// 2. Export Selected
+document.getElementById('export-selected-btn').addEventListener('click', async () => {
+    // Get selected UUIDs
+    const selectedIds = Array.from(document.querySelectorAll('.history-checkbox:checked')).map(cb => cb.value);
     if(!selectedIds.length) return alert("Please select logs to export first.");
-    const allLogs = JSON.parse(localStorage.getItem("attendanceHistory") || "[]");
-    const filteredLogs = allLogs.filter(l => selectedIds.includes(l.id));
-    exportLogsToCSV(filteredLogs, 'cicr_selected_attendance.csv');
+    
+    const { data: logs, error } = await supabaseClient
+        .from('attendance_logs')
+        .select('*')
+        .in('id', selectedIds) // Filter by IDs
+        .order('date', { ascending: false });
+
+    if(error) return alert("Export failed: " + error.message);
+
+    const formattedLogs = logs.map(l => ({
+        date: l.date,
+        topic: l.topic,
+        attendance: l.attendance_data
+    }));
+    
+    exportLogsToCSV(formattedLogs, 'cicr_selected_attendance.csv');
 });
 function exportLogsToCSV(logs, filename) {
     if(!logs.length) return alert("No data to export.");
@@ -533,14 +608,56 @@ function updateSummary() {
     const total = p + a;
     document.getElementById("present-percentage").textContent = total > 0 ? ((p/total)*100).toFixed(1) + "%" : "0.0%";
 }
-function saveData() {
-    if(!isAdminUnlocked) { securityMessage.textContent = "Admin PIN required to SAVE Attendance Log."; securityOverlay.style.display = 'flex'; securityPinInput.value = ''; securityPinInput.focus(); pendingAction = () => { saveData(); }; return; }
-    if(!document.getElementById("attendance-date").value) return alert("Select Date.");
-    if(Object.keys(attendanceState).length === 0) { if(!confirm("No students marked Present or Absent. Save empty log?")) return; }
-    operateGate(() => {
-        const h = JSON.parse(localStorage.getItem("attendanceHistory") || "[]");
-        h.unshift({ id: Date.now(), date: document.getElementById("attendance-date").value, topic: document.getElementById("attendance-subject").value, attendance: Object.keys(attendanceState).map(k=>({name:k.split(": ")[1], group:k.split(": ")[0], status:attendanceState[k]})) });
-        localStorage.setItem("attendanceHistory", JSON.stringify(h)); showSuccessAnimation();
+// --- NEW CODE (Supabase Write) ---
+// --- NEW CODE (Supabase Write) ---
+async function saveData() {
+    // 1. Security Check (Unchanged)
+    if(!isAdminUnlocked) {
+        securityMessage.textContent = "Admin PIN required to SAVE Attendance Log.";
+        securityOverlay.style.display = 'flex';
+        securityPinInput.value = ''; 
+        securityPinInput.focus();
+        pendingAction = () => { saveData(); }; 
+        return;
+    }
+
+    // 2. Validation (Unchanged)
+    const dateVal = document.getElementById("attendance-date").value;
+    const topicVal = document.getElementById("attendance-subject").value;
+
+    if(!dateVal) return alert("Select Date.");
+    if(Object.keys(attendanceState).length === 0) {
+        if(!confirm("No students marked Present or Absent. Save empty log?")) return;
+    }
+    
+    // 3. Prepare the Data Object (Same structure as before)
+    const attendanceArray = Object.keys(attendanceState).map(k => ({
+        name: k.split(": ")[1], 
+        group: k.split(": ")[0], 
+        status: attendanceState[k]
+    }));
+
+    operateGate(async () => {
+        // 4. Send to Supabase
+        const { error } = await supabaseClient
+            .from('attendance_logs')
+            .insert([
+                { 
+                    date: dateVal, 
+                    topic: topicVal, 
+                    attendance_data: attendanceArray // Storing the full array as JSON
+                }
+            ]);
+
+        if (error) {
+            console.error("Supabase Error:", error);
+            alert("Failed to save attendance: " + error.message);
+            return;
+        }
+
+        // 5. Success
+        showSuccessAnimation();
+        // Note: The History tab will NOT update yet (we fix this in Step 5)
     });
 }
 function handleTopicChange() { const s = document.getElementById("attendance-subject"); document.getElementById("custom-topic-input").style.display = s.value === "Other" ? "block" : "none"; document.getElementById("current-subject-display").textContent = s.value === "Other" && document.getElementById("custom-topic-input").value ? document.getElementById("custom-topic-input").value : s.options[s.selectedIndex].textContent; }
