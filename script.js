@@ -515,14 +515,58 @@ async function renderHistory() {
     });
 }
 window.toggleHistoryDetail = (id) => { const el = document.getElementById(`history-detail-${id}`); if(el) el.style.display = el.style.display === "block" ? "none" : "block"; };
-document.getElementById('clear-history-btn').addEventListener('click', () => { if(confirm("Clear ALL attendance logs permanently?")) { localStorage.removeItem("attendanceHistory"); renderHistory(); }});
-document.getElementById('remove-selected-btn').addEventListener('click', () => {
-    const selected = Array.from(document.querySelectorAll('.history-checkbox:checked')).map(cb => parseInt(cb.value));
-    if(!selected.length) return alert("No logs selected.");
-    if(confirm(`Delete ${selected.length} logs?`)) {
-        let logs = JSON.parse(localStorage.getItem("attendanceHistory") || "[]");
-        logs = logs.filter(l => !selected.includes(l.id));
-        localStorage.setItem("attendanceHistory", JSON.stringify(logs)); renderHistory();
+document.getElementById('clear-history-btn').addEventListener('click', async () => {
+    if(!isAdminUnlocked) { 
+        securityMessage.textContent = "Admin PIN required to Clear History."; 
+        securityOverlay.style.display = 'flex'; 
+        securityPinInput.value = ''; securityPinInput.focus(); 
+        // No pendingAction for safety on destructive acts
+        return; 
+    }
+
+    if(confirm("⚠ WARNING: This will permanently DELETE ALL attendance logs from the database.\nAre you sure?")) {
+        // Delete all rows where ID is not null (effectively all)
+        const { error } = await supabaseClient
+            .from('attendance_logs')
+            .delete()
+            .neq('id', '00000000-0000-0000-0000-000000000000'); // Safety delete all
+
+        if(error) {
+            alert("Delete failed: " + error.message);
+        } else {
+            await fetchAttendanceLogs(); // Refresh Cache
+            renderHistory(); // Refresh UI
+            // Optional: Recalculate analytics
+            try { calculatePersonalReport(); } catch(e){}
+            showSuccessAnimation();
+        }
+    }
+});
+document.getElementById('remove-selected-btn').addEventListener('click', async () => {
+    if(!isAdminUnlocked) { 
+        securityMessage.textContent = "Admin PIN required to Delete Logs."; 
+        securityOverlay.style.display = 'flex'; 
+        securityPinInput.value = ''; securityPinInput.focus(); 
+        return; 
+    }
+
+    const selectedIds = Array.from(document.querySelectorAll('.history-checkbox:checked')).map(cb => cb.value);
+    if(!selectedIds.length) return alert("No logs selected.");
+
+    if(confirm(`Permanently delete ${selectedIds.length} selected logs from database?`)) {
+        const { error } = await supabaseClient
+            .from('attendance_logs')
+            .delete()
+            .in('id', selectedIds);
+
+        if(error) {
+            alert("Delete failed: " + error.message);
+        } else {
+            await fetchAttendanceLogs(); // Refresh Cache
+            renderHistory(); // Refresh UI
+            try { calculatePersonalReport(); } catch(e){}
+            showSuccessAnimation();
+        }
     }
 });
 // --- NEW Export Logic (Supabase) ---
@@ -567,7 +611,7 @@ document.getElementById('export-selected-btn').addEventListener('click', async (
     }));
     
     exportLogsToCSV(formattedLogs, 'cicr_selected_attendance.csv');
-});
+}); 
 function exportLogsToCSV(logs, filename) {
     if(!logs.length) return alert("No data to export.");
     let csv = "Date,Topic,Name,Status\n";
@@ -686,103 +730,458 @@ function calculatePersonalReport() {
     });
 }
 
-// --- EQUIPMENT ---
-function renderEquipmentLogs() {
-    const logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]");
-    const tbody = document.getElementById("equipment-log-body"); tbody.innerHTML = "";
-    if(logs.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; opacity:0.5;">No hardware issued.</td></tr>'; return; }
+// --- EQUIPMENT (SUPABASE) ---
+async function renderEquipmentLogs() {
+    const tbody = document.getElementById("equipment-log-body");
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; opacity:0.6;">Loading...</td></tr>';
+
+    // Fetch ONLY active (not returned) items to match old UI behavior
+    const { data: logs, error } = await supabaseClient
+        .from('equipment_logs')
+        .select('*')
+        .eq('is_returned', false)
+        .order('issue_date', { ascending: false });
+
+    if (error) {
+        console.error("Equipment load error:", error);
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--color-danger);">Error loading logs.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = "";
+    if (logs.length === 0) { 
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; opacity:0.5;">No hardware issued.</td></tr>'; 
+        return; 
+    }
+
     logs.forEach(item => {
-        tbody.innerHTML += `<tr><td style="color:var(--color-accent); font-weight:bold;">${item.name}</td><td>${item.issuedTo}<br><span style="font-size:10px; color:#888;">${item.group}</span></td><td>Issued: ${item.issueDate}<br><span style="font-size:10px; color:#e74c3c;">Return: ${item.returnDate}</span></td><td><span class="tech-badge" style="background: rgba(231, 76, 60, 0.1); color: var(--color-danger);">ISSUED</span></td><td style="display:flex; gap:5px;"><button class="btn-utility btn-equipment-return" onclick="returnEquipment(${item.id})">RETURN</button><button class="btn-utility" title="Send Reminder Email" style="padding:5px 10px; font-size:16px; border-color:var(--color-tinker); color:var(--color-tinker);" onclick="sendEqReminder('${item.name.replace(/'/g, "\\'")}', '${item.returnDate}')">🔔</button></td></tr>`;
+        // Note: Passing UUID string to function
+        const row = `
+        <tr>
+            <td style="color:var(--color-accent); font-weight:bold;">${item.equipment_name}</td>
+            <td>${item.issued_to}<br><span style="font-size:10px; color:#888;">${item.project_group || 'N/A'}</span></td>
+            <td>Issued: ${item.issue_date}<br><span style="font-size:10px; color:#e74c3c;">Return: ${item.return_date}</span></td>
+            <td><span class="tech-badge" style="background: rgba(231, 76, 60, 0.1); color: var(--color-danger);">ISSUED</span></td>
+            <td style="display:flex; gap:5px;">
+                <button class="btn-utility btn-equipment-return" onclick="returnEquipment('${item.id}')">RETURN</button>
+                <button class="btn-utility" title="Send Reminder Email" style="padding:5px 10px; font-size:16px; border-color:var(--color-tinker); color:var(--color-tinker);" onclick="sendEqReminder('${item.equipment_name.replace(/'/g, "\\'")}', '${item.return_date}')">🔔</button>
+            </td>
+        </tr>`;
+        tbody.innerHTML += row;
     });
 }
-window.sendEqReminder = (name, date) => { window.location.href = `mailto:?subject=${encodeURIComponent("Equipment Return: " + name)}&body=${encodeURIComponent("Please return by " + date)}`; };
-document.getElementById("add-equipment-btn").addEventListener("click", () => {
-    const name = document.getElementById("eq-name").value; const to = document.getElementById("eq-member-select").value; const idate = document.getElementById("eq-issue-date").value; const rdate = document.getElementById("eq-return-date").value; const grp = document.getElementById("eq-group").value;
-    if(!name || !to || !idate || !rdate) return alert("All fields are required.");
-    const logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]"); logs.unshift({ id: Date.now(), name, issuedTo: to, group: grp, issueDate: idate, returnDate: rdate });
-    localStorage.setItem("cicrEquipment", JSON.stringify(logs)); showSuccessAnimation(); renderEquipmentLogs();
-});
-window.returnEquipment = (id) => {
-    if(!isAdminUnlocked) { securityMessage.textContent = "Admin PIN required to Mark as Returned."; securityOverlay.style.display = 'flex'; securityPinInput.value = ''; securityPinInput.focus(); pendingAction = () => { window.returnEquipment(id); }; return; }
-    if(!confirm("Mark this item as returned?")) return;
-    let logs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]"); logs = logs.filter(x => x.id !== id); localStorage.setItem("cicrEquipment", JSON.stringify(logs)); renderEquipmentLogs(); showSuccessAnimation();
+
+window.sendEqReminder = (name, date) => { 
+    window.location.href = `mailto:?subject=${encodeURIComponent("Equipment Return: " + name)}&body=${encodeURIComponent("Please return by " + date)}`; 
 };
 
-// --- PROJECTS ---
-function loadProjects() { return JSON.parse(localStorage.getItem("cicrProjects") || "[]"); }
-function renderProjects() {
-    const p = loadProjects(); const l = document.getElementById("live-projects-list"); l.innerHTML = "";
-    if(!p.length) { l.innerHTML = '<p style="opacity:0.6;">Empty.</p>'; return; }
-    p.forEach(x => { l.innerHTML += `<div class="project-card"><h4>${x.name}</h4><p class="project-info">${x.purpose}</p><span class="project-tech-tag">${x.type}</span><button class="btn-delete-project" onclick="deleteProject(${x.id})">DEL</button></div>`; });
-}
-window.deleteProject = (id) => { if(!confirm("Delete Project?")) return; const p = loadProjects().filter(x=>x.id!==id); localStorage.setItem("cicrProjects", JSON.stringify(p)); renderProjects(); };
-document.getElementById("add-project-btn").addEventListener("click", () => {
-    const n = document.getElementById("project-name").value; const start = document.getElementById("project-start").value;
-    if(!n || !start) return alert("Title and Start Date required.");
-    const p = loadProjects(); p.push({ id: Date.now(), name: n, purpose: document.getElementById("project-purpose").value, type: document.getElementById("project-type").value });
-    localStorage.setItem("cicrProjects", JSON.stringify(p)); showSuccessAnimation(); renderProjects();
+document.getElementById("add-equipment-btn").addEventListener("click", () => {
+    const name = document.getElementById("eq-name").value;
+    const to = document.getElementById("eq-member-select").value;
+    const idate = document.getElementById("eq-issue-date").value;
+    const rdate = document.getElementById("eq-return-date").value;
+    const grp = document.getElementById("eq-group").value;
+
+    if(!name || !to || !idate || !rdate) return alert("All fields are required.");
+
+    operateGate(async () => {
+        const { error } = await supabaseClient
+            .from('equipment_logs')
+            .insert([{ 
+                equipment_name: name, 
+                issued_to: to, 
+                project_group: grp, 
+                issue_date: idate, 
+                return_date: rdate 
+            }]);
+
+        if (error) {
+            alert("Error issuing equipment: " + error.message);
+        } else {
+            // Clear inputs
+            document.getElementById("eq-name").value = "";
+            document.getElementById("eq-group").value = "";
+            showSuccessAnimation();
+            renderEquipmentLogs();
+        }
+    });
 });
 
-// --- CHAT ---
-function loadChat() { const c = JSON.parse(localStorage.getItem("cicrChat") || "[]"); const d = document.getElementById("chat-display"); d.innerHTML = c.map(m=>`<div class="chat-message ${m.sender==='ME'?'msg-self':'msg-other'}"><span class="msg-meta">${m.sender}</span>${m.text}</div>`).join(""); }
-function scrollChat() { const d = document.getElementById("chat-display"); d.scrollTop = d.scrollHeight; }
-function postMessage() {
-    const t = document.getElementById("chat-input").value; if(!t) return;
+window.returnEquipment = async (id) => {
+    if(!isAdminUnlocked) { 
+        securityMessage.textContent = "Admin PIN required to Mark as Returned."; 
+        securityOverlay.style.display = 'flex'; 
+        securityPinInput.value = ''; securityPinInput.focus(); 
+        pendingAction = () => { window.returnEquipment(id); }; 
+        return; 
+    }
+
+    if(!confirm("Mark this item as returned?")) return;
+
+    // Update DB: set is_returned = true
+    const { error } = await supabaseClient
+        .from('equipment_logs')
+        .update({ is_returned: true })
+        .eq('id', id);
+
+    if (error) {
+        alert("Error updating status: " + error.message);
+    } else {
+        showSuccessAnimation();
+        renderEquipmentLogs();
+    }
+};
+
+// --- PROJECTS (SUPABASE) ---
+// Note: We don't need loadProjects() helper anymore, we fetch directly in render
+async function renderProjects() {
+    const list = document.getElementById("live-projects-list");
+    list.innerHTML = '<p style="opacity:0.6;">Loading projects...</p>';
+
+    const { data: projects, error } = await supabaseClient
+        .from('projects')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    list.innerHTML = "";
+    
+    if (error) {
+        console.error(error);
+        list.innerHTML = '<p style="color:var(--color-danger)">Error loading projects.</p>';
+        return;
+    }
+
+    if (!projects || projects.length === 0) { 
+        list.innerHTML = '<p style="opacity:0.6;">Empty.</p>'; 
+        return; 
+    }
+
+    projects.forEach(x => {
+        // Map DB columns to UI
+        list.innerHTML += `
+        <div class="project-card">
+            <h4>${x.title}</h4>
+            <p class="project-info">${x.description || ''}</p>
+            <span class="project-tech-tag">${x.status}</span>
+            ${x.tech_stack ? `<span class="project-tech-tag" style="border-color:#fff; color:#fff;">${x.tech_stack}</span>` : ''}
+            <button class="btn-delete-project" onclick="deleteProject('${x.id}')">DEL</button>
+            <div class="project-actions">
+                ${x.resources_link ? `<a href="${x.resources_link}" target="_blank" class="project-btn-link">View Resources</a>` : ''}
+            </div>
+        </div>`;
+    });
+}
+
+window.deleteProject = async (id) => { 
+    if(!confirm("Delete Project?")) return;
+    
+    const { error } = await supabaseClient
+        .from('projects')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        alert("Delete failed: " + error.message);
+    } else {
+        renderProjects(); 
+    }
+};
+
+document.getElementById("add-project-btn").addEventListener("click", () => {
+    // Gather all inputs
+    const title = document.getElementById("project-name").value; 
+    const status = document.getElementById("project-type").value;
+    const desc = document.getElementById("project-purpose").value;
+    const tech = document.getElementById("project-tech").value;
+    const links = document.getElementById("project-links").value;
+    const start = document.getElementById("project-start").value;
+    const end = document.getElementById("project-end").value;
+    
+    // Get Multi-Select Members (Values)
+    const memberSelect = document.getElementById("project-members-select");
+    const members = Array.from(memberSelect.selectedOptions).map(o => o.value).join(", ");
+
+    if(!title || !start) return alert("Title and Start Date required.");
+    if(!links) return alert("Resources Link is MANDATORY.");
+
+    operateGate(async () => {
+        const { error } = await supabaseClient
+            .from('projects')
+            .insert([{ 
+                title: title,
+                status: status,
+                description: desc,
+                tech_stack: tech,
+                resources_link: links,
+                start_date: start,
+                end_date: end || null, // Handle empty date safely
+                team_members: members
+            }]);
+
+        if (error) {
+            alert("Error adding project: " + error.message);
+        } else {
+            showSuccessAnimation(); 
+            renderProjects();
+            
+            // Clear minimal inputs
+            document.getElementById("project-name").value = "";
+            document.getElementById("project-purpose").value = "";
+        }
+    });
+});
+// --- CHAT (SUPABASE) ---
+async function loadChat() { 
+    const d = document.getElementById("chat-display"); 
+    // d.innerHTML = '<div style="text-align:center; opacity:0.5; padding:20px;">Loading encrypted channel...</div>';
+
+    const { data: messages, error } = await supabaseClient
+        .from('chat_messages')
+        .select('*')
+        .order('created_at', { ascending: true }); // Oldest first
+
+    if(error) {
+        console.error("Chat Error:", error);
+        return;
+    }
+
+    // Map DB 'message' column to UI 'text' expectation
+    d.innerHTML = messages.map(m => 
+        `<div class="chat-message ${m.sender==='ME'?'msg-self':'msg-other'}"><span class="msg-meta">${m.sender}</span>${m.message}</div>`
+    ).join(""); 
+}
+
+function scrollChat() { 
+    const d = document.getElementById("chat-display"); 
+    d.scrollTop = d.scrollHeight; 
+}
+
+async function postMessage() {
+    const input = document.getElementById("chat-input");
+    const val = input.value; 
+    if(!val) return;
+    
     const sender = document.getElementById("chat-sender-select").value || "ME";
-    const c = JSON.parse(localStorage.getItem("cicrChat") || "[]"); c.push({sender: sender, text:t}); localStorage.setItem("cicrChat", JSON.stringify(c)); document.getElementById("chat-input").value=""; loadChat(); scrollChat();
+
+    // Optimistic UI update (shows immediately)
+    const d = document.getElementById("chat-display");
+    d.innerHTML += `<div class="chat-message ${sender==='ME'?'msg-self':'msg-other'}"><span class="msg-meta">${sender}</span>${val}</div>`;
+    scrollChat();
+    input.value = "";
+
+    // Send to DB
+    const { error } = await supabaseClient
+        .from('chat_messages')
+        .insert([{ sender: sender, message: val }]);
+
+    if(error) console.error("Message failed:", error);
+    // No need to reload chat immediately as we did optimistic update
 }
 document.getElementById("chat-send-btn").addEventListener("click", postMessage);
 
-// --- SOCIAL FEED ---
+
+// --- SOCIAL FEED (SUPABASE) ---
 function toggleImgInput() {
     const type = document.getElementById('social-img-type').value;
     document.getElementById('social-url-wrapper').style.display = type === 'url' ? 'block' : 'none';
     document.getElementById('social-file-wrapper').style.display = type === 'file' ? 'block' : 'none';
 }
-function publishPost() {
+
+async function publishPost() {
     const author = document.getElementById('social-author').value.trim();
     const text = document.getElementById('social-text').value.trim();
     const imgType = document.getElementById('social-img-type').value;
     const link = document.getElementById('social-link').value.trim();
+    
     if(!author || !text) return alert("Please include an Author and Caption.");
 
-    const createPostObj = (imgData) => {
-        const posts = JSON.parse(localStorage.getItem(socialFeedKey) || "[]");
-        const newPost = { id: Date.now(), author: author.split(":")[1] || author, text, image: imgData, link, likes: 0, comments: [], pinned: false, timestamp: new Date().toISOString() };
-        posts.unshift(newPost);
-        localStorage.setItem(socialFeedKey, JSON.stringify(posts));
-        addNotification(`New Social Post by ${newPost.author}: "${text.substring(0, 20)}..."`, "social");
-        document.getElementById('social-text').value = ""; document.getElementById('social-img-url').value = ""; document.getElementById('social-img-file').value = ""; document.getElementById('social-link').value = "";
-        showSuccessAnimation(); renderFeed();
+    // Helper to send data
+    const sendToDb = async (imgData) => {
+        const cleanAuthor = author.split(":")[1] || author;
+        
+        const { error } = await supabaseClient
+            .from('social_posts')
+            .insert([{ 
+                author: cleanAuthor, 
+                content: text, 
+                image_data: imgData, 
+                external_link: link,
+                comments_data: [] // Init empty array
+            }]);
+
+        if (error) {
+            alert("Post failed: " + error.message);
+        } else {
+            // Notification
+            addNotification(`New Social Post by ${cleanAuthor}`, "social");
+            
+            // Cleanup
+            document.getElementById('social-text').value = ""; 
+            document.getElementById('social-img-url').value = ""; 
+            document.getElementById('social-img-file').value = ""; 
+            document.getElementById('social-link').value = "";
+            
+            showSuccessAnimation(); 
+            renderFeed();
+        }
     };
+
     if (imgType === 'file') {
         const fileInput = document.getElementById('social-img-file');
         if (fileInput.files && fileInput.files[0]) {
-            const file = fileInput.files[0]; if(file.size > 500000) return alert("File too large! Max 500KB.");
-            const reader = new FileReader(); reader.onload = (e) => createPostObj(e.target.result); reader.readAsDataURL(file);
-        } else { createPostObj(null); }
-    } else { createPostObj(document.getElementById('social-img-url').value.trim() || null); }
+            const file = fileInput.files[0]; 
+            if(file.size > 500000) return alert("File too large! Max 500KB.");
+            const reader = new FileReader(); 
+            reader.onload = (e) => sendToDb(e.target.result); 
+            reader.readAsDataURL(file);
+        } else { sendToDb(null); }
+    } else { 
+        sendToDb(document.getElementById('social-img-url').value.trim() || null); 
+    }
 }
-function renderFeed() {
-    const stream = document.getElementById('feed-stream'); const posts = JSON.parse(localStorage.getItem(socialFeedKey) || "[]"); stream.innerHTML = "";
-    posts.sort((a,b) => (b.pinned === a.pinned) ? b.id - a.id : b.pinned - a.pinned);
-    if(posts.length === 0) { stream.innerHTML = `<div style="text-align:center; opacity:0.5; padding:40px;">No posts yet.</div>`; return; }
+
+async function renderFeed() {
+    const stream = document.getElementById('feed-stream'); 
+    stream.innerHTML = '<div style="text-align:center; padding:20px; opacity:0.6;">Refreshing feed...</div>';
+
+    const { data: posts, error } = await supabaseClient
+        .from('social_posts')
+        .select('*')
+        .order('created_at', { ascending: false }); // Newest first
+
+    if(error) {
+        stream.innerHTML = '<div style="text-align:center; color:red;">Error loading feed.</div>';
+        return;
+    }
+
+    // Sort: Pinned first (client side sort)
+    posts.sort((a,b) => (b.is_pinned === a.is_pinned) ? 0 : b.is_pinned ? 1 : -1);
+
+    stream.innerHTML = "";
+    if(posts.length === 0) { 
+        stream.innerHTML = `<div style="text-align:center; opacity:0.5; padding:40px;">No posts yet.</div>`; 
+        return; 
+    }
+
     posts.forEach(post => {
-        const date = new Date(post.timestamp).toLocaleString(); const initial = post.author.charAt(0).toUpperCase();
-        let commentsHtml = ""; post.comments.forEach(c => { commentsHtml += `<li class="comment-item"><strong>${c.user}</strong>: ${c.text}</li>`; });
-        stream.innerHTML += `<div class="feed-card" id="post-${post.id}">${post.pinned ? `<div class="feed-pin-icon" title="Pinned Post">📌</div>` : ''}<div class="feed-admin-controls"><button class="btn-feed-admin btn-feed-pin" onclick="togglePin(${post.id})">${post.pinned ? 'Unpin' : 'Pin'}</button><button class="btn-feed-admin" onclick="deletePost(${post.id})">✖</button></div><div class="feed-header"><div class="feed-avatar">${initial}</div><div class="feed-meta"><h5>${post.author}</h5><span>${date}</span></div></div><div class="feed-content">${post.text}</div>${post.image ? `<img src="${post.image}" class="feed-media" alt="Post Image">` : ''}${post.link ? `<a href="${post.link}" target="_blank" class="feed-link-preview">🔗 ${post.link}</a>` : ''}<div class="feed-actions"><button class="action-btn" onclick="likePost(${post.id})">❤ ${post.likes} Likes</button><button class="action-btn" onclick="document.getElementById('comments-${post.id}').classList.toggle('active')">💬 ${post.comments.length} Comments</button></div><div class="comment-section" id="comments-${post.id}"><ul class="comment-list">${commentsHtml}</ul><div class="comment-input-wrapper"><input type="text" placeholder="Add a comment..." id="input-comment-${post.id}"><button class="btn-utility" style="padding:5px 10px; font-size:10px;" onclick="addComment(${post.id})">POST</button></div></div></div>`;
+        // Map DB columns to UI variables
+        const id = post.id;
+        const author = post.author;
+        const text = post.content;
+        const image = post.image_data;
+        const link = post.external_link;
+        const likes = post.likes || 0;
+        const comments = post.comments_data || [];
+        const pinned = post.is_pinned;
+        const date = new Date(post.created_at).toLocaleString(); 
+        const initial = author.charAt(0).toUpperCase();
+
+        let commentsHtml = ""; 
+        comments.forEach(c => { 
+            commentsHtml += `<li class="comment-item"><strong>${c.user}</strong>: ${c.text}</li>`; 
+        });
+
+        stream.innerHTML += `
+        <div class="feed-card" id="post-${id}">
+            ${pinned ? `<div class="feed-pin-icon" title="Pinned Post">📌</div>` : ''}
+            <div class="feed-admin-controls">
+                <button class="btn-feed-admin btn-feed-pin" onclick="togglePin('${id}', ${pinned})">${pinned ? 'Unpin' : 'Pin'}</button>
+                <button class="btn-feed-admin" onclick="deletePost('${id}')">✖</button>
+            </div>
+            <div class="feed-header">
+                <div class="feed-avatar">${initial}</div>
+                <div class="feed-meta"><h5>${author}</h5><span>${date}</span></div>
+            </div>
+            <div class="feed-content">${text}</div>
+            ${image ? `<img src="${image}" class="feed-media" alt="Post Image">` : ''}
+            ${link ? `<a href="${link}" target="_blank" class="feed-link-preview">🔗 ${link}</a>` : ''}
+            <div class="feed-actions">
+                <button class="action-btn" onclick="likePost('${id}', ${likes})">❤ ${likes} Likes</button>
+                <button class="action-btn" onclick="document.getElementById('comments-${id}').classList.toggle('active')">💬 ${comments.length} Comments</button>
+            </div>
+            <div class="comment-section" id="comments-${id}">
+                <ul class="comment-list">${commentsHtml}</ul>
+                <div class="comment-input-wrapper">
+                    <input type="text" placeholder="Add a comment..." id="input-comment-${id}">
+                    <button class="btn-utility" style="padding:5px 10px; font-size:10px;" onclick="addComment('${id}')">POST</button>
+                </div>
+            </div>
+        </div>`;
     });
 }
-window.likePost = function(id) { const posts = JSON.parse(localStorage.getItem(socialFeedKey) || "[]"); const p = posts.find(x => x.id === id); if(p) { p.likes++; localStorage.setItem(socialFeedKey, JSON.stringify(posts)); renderFeed(); } };
-window.addComment = function(id) {
-    const input = document.getElementById(`input-comment-${id}`); const text = input.value.trim(); if(!text) return;
-    const posts = JSON.parse(localStorage.getItem(socialFeedKey) || "[]"); const p = posts.find(x => x.id === id);
-    if(p) { p.comments.push({ user: "Member", text }); localStorage.setItem(socialFeedKey, JSON.stringify(posts)); renderFeed(); }
-};
-window.togglePin = function(id) { if(!isAdminUnlocked) { securityMessage.textContent = "Admin PIN required."; securityOverlay.style.display = 'flex'; securityPinInput.value=''; securityPinInput.focus(); pendingAction = () => { window.togglePin(id); }; return; } const posts = JSON.parse(localStorage.getItem(socialFeedKey) || "[]"); const p = posts.find(x => x.id === id); if(p) { p.pinned = !p.pinned; localStorage.setItem(socialFeedKey, JSON.stringify(posts)); renderFeed(); } };
-window.deletePost = function(id) { if(!isAdminUnlocked) { securityMessage.textContent = "Admin PIN required."; securityOverlay.style.display = 'flex'; securityPinInput.value=''; securityPinInput.focus(); pendingAction = () => { window.deletePost(id); }; return; } if(!confirm("Delete?")) return; let posts = JSON.parse(localStorage.getItem(socialFeedKey) || "[]"); posts = posts.filter(x => x.id !== id); localStorage.setItem(socialFeedKey, JSON.stringify(posts)); renderFeed(); };
-document.getElementById('social-post-btn').addEventListener('click', publishPost);
 
+window.likePost = async function(id, currentLikes) { 
+    // Optimistic update handled by re-render usually, but here simply update DB then reload
+    const { error } = await supabaseClient
+        .from('social_posts')
+        .update({ likes: currentLikes + 1 })
+        .eq('id', id);
+        
+    if(!error) renderFeed(); 
+};
+
+window.addComment = async function(id) {
+    const input = document.getElementById(`input-comment-${id}`); 
+    const text = input.value.trim(); 
+    if(!text) return;
+
+    // 1. Fetch current comments first to append safely
+    const { data: post, error: fetchError } = await supabaseClient
+        .from('social_posts')
+        .select('comments_data')
+        .eq('id', id)
+        .single();
+
+    if(fetchError) return alert("Error fetching post details.");
+
+    const currentComments = post.comments_data || [];
+    currentComments.push({ user: "Member", text: text }); // Generic user for now
+
+    // 2. Update DB
+    const { error: updateError } = await supabaseClient
+        .from('social_posts')
+        .update({ comments_data: currentComments })
+        .eq('id', id);
+
+    if(!updateError) renderFeed();
+};
+
+window.togglePin = async function(id, currentStatus) { 
+    if(!isAdminUnlocked) { 
+        securityMessage.textContent = "Admin PIN required."; 
+        securityOverlay.style.display = 'flex'; 
+        securityPinInput.value=''; securityPinInput.focus(); 
+        // No pendingAction callback here to keep it simple, just deny
+        return; 
+    } 
+    
+    const { error } = await supabaseClient
+        .from('social_posts')
+        .update({ is_pinned: !currentStatus })
+        .eq('id', id);
+
+    if(!error) renderFeed(); 
+};
+
+window.deletePost = async function(id) { 
+    if(!isAdminUnlocked) { 
+        securityMessage.textContent = "Admin PIN required."; 
+        securityOverlay.style.display = 'flex'; 
+        securityPinInput.value=''; securityPinInput.focus(); 
+        return; 
+    } 
+    
+    if(!confirm("Delete this post?")) return; 
+    
+    const { error } = await supabaseClient
+        .from('social_posts')
+        .delete()
+        .eq('id', id);
+
+    if(!error) renderFeed(); 
+};
+
+document.getElementById('social-post-btn').addEventListener('click', publishPost);
 // --- TEAMS (READ-ONLY) ---
 function renderTeams() {
     const grid = document.getElementById("team-display-grid"); const domainSelect = document.getElementById("team-domain-select"); const selectedDomain = domainSelect.value || "Software";
