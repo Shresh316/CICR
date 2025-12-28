@@ -7,7 +7,6 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const currentUser = { id: "ADMIN", name: "Administrator", year: "4th Year", enrollment: "000000" };
-let GLOBAL_SECURITY_PIN = localStorage.getItem("cicr_security_pin") || "1407"; 
 
 // Dynamic Data Containers (Populated from Supabase)
 let h4_students = []; 
@@ -16,8 +15,9 @@ let ALL_GROUPS = []; // Derived from DB data
 
 // Legacy LocalStorage (Preserved for non-member features)
 let attendanceState = {};
-let notifications = JSON.parse(localStorage.getItem("cicrNotifications") || "[]");
-
+let cachedAttendanceLogs = []; // --- NEW: Cache for Analytics to fix missing data ---
+let GLOBAL_SECURITY_PIN = "1407"; // Default fallback
+let notifications = []; // Will be populated from DB
 let domainHeads = {};
 let memberPhotos = {};
 const socialFeedKey = "cicrFeed";
@@ -104,6 +104,28 @@ async function fetchMembers() {
     renderMemberDirectory();
     renderTeams();
 }
+// --- ADD THIS MISSING FUNCTION ---
+// --- ADD THESE NEW FUNCTIONS ---
+async function fetchSettings() {
+    const { data } = await supabaseClient
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'security_pin')
+        .single();
+    if(data) GLOBAL_SECURITY_PIN = data.value;
+}
+
+async function fetchNotifications() {
+    const { data } = await supabaseClient
+        .from('notifications')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(20); // Keep it manageable
+    if(data) { 
+        notifications = data; 
+        renderNotifications(); 
+    }
+}
 
 async function addMember() {
     const name = document.getElementById("new-member-name").value.trim(); 
@@ -169,7 +191,21 @@ async function removeMember() {
         }
     }
 }
+// --- REPLACE EXISTING addNotification ---
+async function addNotification(text, type = "general", metadata = {}) {
+    // Simple duplicate check (optional, but good for UX)
+    const isDuplicate = notifications.some(n => n.text === text && new Date(n.created_at).toDateString() === new Date().toDateString());
+    if (isDuplicate) return;
 
+    const { error } = await supabaseClient
+        .from('notifications')
+        .insert([{ text, type, metadata, is_read: false }]);
+
+    if (!error) {
+        await fetchNotifications(); // Refresh list
+        AUDIO.play('success');
+    }
+}
 // Used in Directory Card buttons
 window.removeMemberDirectly = async (str) => {
     const namePart = str.split(": ")[1].split(" (")[0].trim();
@@ -430,7 +466,12 @@ function switchTab(targetTabId, saveToStorage = true) {
         
         // Render specific tab content
         if (targetTabId === 'history') renderHistory();
-        else if (targetTabId === 'reports') { try { calculatePersonalReport(); } catch(e) { console.error("Analytics Error", e); } }
+        else if (targetTabId === 'reports') { 
+    // Ensure we have data before calculating
+    renderHistory().then(() => {
+        try { calculatePersonalReport(); } catch(e) { console.error("Analytics Error", e); } 
+    });
+}
         else if (targetTabId === 'projects') renderProjects();
         else if (targetTabId === 'chat') { loadChat(); scrollChat(); }
         else if (targetTabId === 'admin') { populateGroupSelects(); }
@@ -467,6 +508,9 @@ async function renderHistory() {
         return;
     }
 
+    // --- FIX: Update global cache for Analytics ---
+    cachedAttendanceLogs = logs || [];
+
     list.innerHTML = "";
     if (!logs || logs.length === 0) { 
         list.innerHTML = '<li style="padding:20px; text-align:center; opacity:0.6;">No attendance records found.</li>'; 
@@ -475,7 +519,7 @@ async function renderHistory() {
     
     logs.forEach(log => {
         // Map DB JSONB 'attendance_data' to the UI's expected 'attendance' list
-        const attendanceList = log.attendance_data; 
+        const attendanceList = log.attendance_data || []; // Safety check
         
         const presentCount = attendanceList.filter(s => s.status === "PRESENT").length;
         const totalCount = attendanceList.length;
@@ -484,7 +528,6 @@ async function renderHistory() {
         const li = document.createElement("li"); 
         li.className = "history-item";
         
-        // Note: passing ID as string '${log.id}' for UUID compatibility
         li.innerHTML = `
             <div class="history-header-wrapper">
                 <div style="display:flex; align-items:center;">
@@ -700,12 +743,29 @@ function handleTopicChange() { const s = document.getElementById("attendance-sub
 
 // --- ANALYTICS ---
 function calculatePersonalReport() {
-    const logs = JSON.parse(localStorage.getItem("attendanceHistory") || "[]");
+    // --- FIX: Use global cache instead of LocalStorage ---
+    const logs = cachedAttendanceLogs; 
+    
     const stats = {};
     h4_students.forEach(s => { const [yearGroup, namePart] = s.split(": "); const name = namePart; stats[name] = { year: yearGroup, present: 0, total: 0 }; });
+    
     if (logs && Array.isArray(logs)) {
-        logs.forEach(log => { if(log.attendance) { log.attendance.forEach(entry => { let key = Object.keys(stats).find(k => k.includes(entry.name)); if(!key) { key = entry.name; if(!stats[key]) stats[key] = { year: "Unknown", present: 0, total: 0 }; } stats[key].total++; if(entry.status === "PRESENT") stats[key].present++; }); } });
+        logs.forEach(log => { 
+            // --- FIX: Use correct DB column 'attendance_data' ---
+            if(log.attendance_data) { 
+                log.attendance_data.forEach(entry => { 
+                    let key = Object.keys(stats).find(k => k.includes(entry.name)); 
+                    if(!key) { 
+                        key = entry.name; 
+                        if(!stats[key]) stats[key] = { year: "Unknown", present: 0, total: 0 }; 
+                    } 
+                    stats[key].total++; 
+                    if(entry.status === "PRESENT") stats[key].present++; 
+                }); 
+            } 
+        });
     }
+    
     [1, 2, 3, 4].forEach(y => {
         const tbody = document.getElementById(`analytics-body-${y}`); if (!tbody) return; tbody.innerHTML = "";
         const yearKey = `${y}${y===1?'st':(y===2?'nd':(y===3?'rd':'th'))} Year`;
@@ -784,7 +844,8 @@ document.getElementById("add-equipment-btn").addEventListener("click", () => {
                 issued_to: to, 
                 project_group: grp, 
                 issue_date: idate, 
-                return_date: rdate 
+                return_date: rdate,
+                is_returned: false // --- FIX: Explicitly set default to prevent disappearing items ---
             }]);
 
         if (error) {
@@ -1244,12 +1305,27 @@ document.getElementById("schedule-meeting-btn").addEventListener("click", () => 
 });
 
 // --- ADMIN ---
-document.getElementById("update-pin-btn").addEventListener("click", () => {
-    const currentInput = document.getElementById('current-security-pin-verify').value; const newPin = document.getElementById('new-security-pin').value;
+// --- REPLACE EXISTING update-pin-btn LISTENER ---
+document.getElementById("update-pin-btn").addEventListener("click", async () => {
+    const currentInput = document.getElementById('current-security-pin-verify').value;
+    const newPin = document.getElementById('new-security-pin').value;
+    
     if(currentInput !== GLOBAL_SECURITY_PIN) return alert("Incorrect PIN.");
     if(newPin.length !== 4) return alert("New PIN must be 4 digits.");
-    GLOBAL_SECURITY_PIN = newPin; localStorage.setItem("cicr_security_pin", newPin); alert("PIN Updated.");
-    document.getElementById('current-security-pin-verify').value = ''; document.getElementById('new-security-pin').value = '';
+    
+    const { error } = await supabaseClient
+        .from('app_settings')
+        .update({ value: newPin })
+        .eq('key', 'security_pin');
+
+    if(error) {
+        alert("Update failed: " + error.message);
+    } else {
+        GLOBAL_SECURITY_PIN = newPin; // Update local immediately
+        alert("Security PIN Updated Globally.");
+        document.getElementById('current-security-pin-verify').value = '';
+        document.getElementById('new-security-pin').value = '';
+    }
 });
 
 // Admin add/remove group placeholders (Visual only since groups are DB derived)
@@ -1269,6 +1345,8 @@ splashScreen.addEventListener('click', () => {
             fetchMembers().then(() => {
                 const ySelect = document.getElementById("year-select"); if(ySelect.options.length > 0) ySelect.options[0].selected = true;
                 renderStudents();
+                fetchSettings(),
+        fetchNotifications()
             });
             runSystemChecks(); renderNotifications();
             const savedTab = sessionStorage.getItem("cicr_active_tab"); 
