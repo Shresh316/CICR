@@ -1327,7 +1327,16 @@ document.getElementById("update-pin-btn").addEventListener("click", async () => 
         document.getElementById('new-security-pin').value = '';
     }
 });
-
+function updateClock() {
+    const now = new Date();
+    // Formats time as "10:30 PM" or "22:30" depending on locale
+    const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    // Safety check in case the element isn't found
+    if (digitalClock) {
+        digitalClock.textContent = timeString;
+    }
+}
 // Admin add/remove group placeholders (Visual only since groups are DB derived)
 document.getElementById("admin-add-year-btn").addEventListener("click", () => alert("Years are now managed automatically based on member profiles."));
 document.getElementById("admin-remove-year-btn").addEventListener("click", () => alert("Years are managed automatically. Remove members from a year to hide it."));
