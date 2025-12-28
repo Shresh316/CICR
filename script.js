@@ -17,8 +17,9 @@ let ALL_GROUPS = []; // Derived from DB data
 // Legacy LocalStorage (Preserved for non-member features)
 let attendanceState = {};
 let notifications = JSON.parse(localStorage.getItem("cicrNotifications") || "[]");
-let domainHeads = JSON.parse(localStorage.getItem("cicrDomainHeads") || "{}");
-let memberPhotos = JSON.parse(localStorage.getItem("cicrMemberPhotos") || "{}");
+
+let domainHeads = {};
+let memberPhotos = {};
 const socialFeedKey = "cicrFeed";
 
 // --- AUDIO ENGINE ---
@@ -61,52 +62,43 @@ initParticles(); animateParticles();
 
 // --- SUPABASE MEMBER LOGIC (SINGLE SOURCE OF TRUTH) ---
 
+// --- REPLACE THE EXISTING fetchMembers FUNCTION ---
 async function fetchMembers() {
-    // 1. Fetch active members
     const { data, error } = await supabaseClient
         .from('members')
         .select('*')
         .order('year', { ascending: false });
 
-    if (error) {
-        console.error("Error fetching members:", error);
-        return;
-    }
+    if (error) { console.error("Error fetching members:", error); return; }
 
-    // 2. Reset containers
     h4_students = [];
     memberDetails = {};
-    const groupsSet = new Set(); // Temp set to collect unique years/domains
+    memberPhotos = {}; // Reset
+    domainHeads = {};  // Reset
+    const groupsSet = new Set(); 
 
-    // 3. Process Data
     data.forEach(member => {
         if (member.active) {
-            // Reconstruct the specific string format used by UI: "Year: Name (Domain) [Enrollment]"
             const memberString = `${member.year}: ${member.name} (${member.domain}) [${member.enrollment}]`;
             h4_students.push(memberString);
-
-            // Populate details object
-            memberDetails[member.name] = {
-                dob: null, 
-                email: member.email,
-                phone: member.phone
-            };
-
-            // Collect Groups (Years & Domains) dynamically
+            memberDetails[member.name] = { dob: null, email: member.email, phone: member.phone };
+            
+            // Populate Groups
             if(member.year) groupsSet.add(member.year);
             if(member.domain) groupsSet.add(member.domain);
+
+            // --- NEW: Populate Photos from DB ---
+            if(member.photo_url) memberPhotos[member.name] = member.photo_url;
+
+            // --- NEW: Populate Roles from DB ---
+            if(member.role === 'Head') domainHeads[member.domain] = member.name;
         }
     });
 
-    // 4. Update Global Groups List
     ALL_GROUPS = Array.from(groupsSet).sort();
-    // Ensure basic groups exist even if DB is empty to prevent UI breaking
     const defaultGroups = ["4th Year", "3rd Year", "2nd Year", "1st Year", "Software", "Robotics", "Core"];
     defaultGroups.forEach(g => { if(!ALL_GROUPS.includes(g)) ALL_GROUPS.push(g); });
 
-    console.log("Supabase Sync: Members & Groups Updated.");
-    
-    // 5. Update UI Components
     refreshAllDropdowns();
     renderStudents();
     renderMemberDirectory();
@@ -1208,16 +1200,37 @@ function populateTeamDropdown() {
     domains.forEach(d => { const opt = document.createElement("option"); opt.value = d; opt.textContent = d.toUpperCase(); sel.appendChild(opt); });
     sel.onchange = renderTeams;
 }
-window.toggleDomainHead = (domain, name) => {
+// UPDATED: Now writes to DB 'role' column
+window.toggleDomainHead = async (domain, name) => {
     if(!isAdminUnlocked) return alert("Security Restriction: Unlock Admin Mode first.");
-    if (domainHeads[domain] === name) delete domainHeads[domain]; else if(confirm(`Promote ${name} to HEAD of ${domain}?`)) domainHeads[domain] = name;
-    localStorage.setItem("cicrDomainHeads", JSON.stringify(domainHeads)); renderTeams(); showSuccessAnimation();
+    const newRole = (domainHeads[domain] === name) ? 'Member' : 'Head';
+    if(newRole === 'Head' && !confirm(`Promote ${name} to HEAD of ${domain}?`)) return;
+    
+    // We update Supabase. The logic relies on Name match
+    const { error } = await supabaseClient
+        .from('members')
+        .update({ role: newRole })
+        .eq('name', name);
+
+    if(error) { alert("Failed to update role: " + error.message); }
+    else { await fetchMembers(); showSuccessAnimation(); }
 };
-window.updateMemberPhoto = (name) => {
+// UPDATED: Now writes to DB 'photo_url' column
+window.updateMemberPhoto = async (name) => {
     if(!isAdminUnlocked) { securityMessage.textContent = "Admin PIN required."; securityOverlay.style.display = 'flex'; securityPinInput.value=''; securityPinInput.focus(); pendingAction = () => { window.updateMemberPhoto(name); }; return; }
-    const url = prompt(`Enter Image URL for ${name}:`); if (url === null) return;
-    if (url.trim() === "") delete memberPhotos[name]; else memberPhotos[name] = url.trim();
-    localStorage.setItem("cicrMemberPhotos", JSON.stringify(memberPhotos)); renderTeams();
+    
+    const url = prompt(`Enter Image URL for ${name}:`); 
+    if (url === null) return;
+    
+    const newVal = (url.trim() === "") ? null : url.trim();
+    
+    const { error } = await supabaseClient
+        .from('members')
+        .update({ photo_url: newVal })
+        .eq('name', name);
+
+    if(error) { alert("Failed to update photo: " + error.message); }
+    else { await fetchMembers(); }
 };
 
 // --- SCHEDULING ---
