@@ -347,8 +347,23 @@ function populateGroupSelects() {
     });
 
     if(domFilter) domFilter.value = currentDomFilterVal;
-    if(newMemGrp) { const cust = document.createElement('option'); cust.value = "Custom"; cust.textContent = "Custom Unit... (Type New)"; newMemGrp.appendChild(cust); }
+   if(newMemGrp) { 
+        const cust = document.createElement('option'); 
+        cust.value = "Custom"; 
+        cust.textContent = "Custom Unit... (Type New)"; 
+        newMemGrp.appendChild(cust); 
+        
+        // Fix: Ensure the custom input is shown/hidden correctly based on current state
+        const wrapper = document.getElementById("custom-group-input-wrapper");
+        if(wrapper) wrapper.style.display = newMemGrp.value === "Custom" ? "block" : "none";
+    }
 }
+window.toggleCustomGroupInput = function(selectEl) {
+    const customInputWrapper = document.getElementById("custom-group-input-wrapper");
+    if (customInputWrapper) {
+        customInputWrapper.style.display = selectEl.value === "Custom" ? "block" : "none";
+    }
+};
 
 function populateAllMembersDatalist() {
     allMembersDatalist.innerHTML = ''; 
@@ -1146,8 +1161,10 @@ async function renderFeed() {
                 <div class="feed-meta"><h5>${author}</h5><span>${date}</span></div>
             </div>
             <div class="feed-content">${text}</div>
-            ${image ? `<img src="${image}" class="feed-media" alt="Post Image">` : ''}
-            ${link ? `<a href="${link}" target="_blank" class="feed-link-preview">🔗 ${link}</a>` : ''}
+            
+            ${image ? `<div class="feed-media-wrapper"><img src="${image}" class="feed-media" alt="Post Image"></div>` : ''}
+            ${link ? `<div class="feed-link-wrapper"><a href="${link}" target="_blank" class="feed-link-preview">🔗 ${link}</a></div>` : ''}
+
             <div class="feed-actions">
                 <button class="action-btn" onclick="likePost('${id}', ${likes})">❤ ${likes} Likes</button>
                 <button class="action-btn" onclick="document.getElementById('comments-${id}').classList.toggle('active')">💬 ${comments.length} Comments</button>
@@ -1329,20 +1346,32 @@ document.getElementById("update-pin-btn").addEventListener("click", async () => 
 });
 function updateClock() {
     const now = new Date();
-    // Formats time as "10:30 PM" or "22:30" depending on locale
-    const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    // Fix: Show Day, Date, and Time
+    const options = { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+    const dateString = now.toLocaleDateString('en-US', options); // e.g., "Mon, Dec 29, 04:55:00 PM"
     
-    // Safety check in case the element isn't found
     if (digitalClock) {
-        digitalClock.textContent = timeString;
+        digitalClock.textContent = dateString.replace(/,/g, ''); 
     }
 }
-// Admin add/remove group placeholders (Visual only since groups are DB derived)
-document.getElementById("admin-add-year-btn").addEventListener("click", () => alert("Years are now managed automatically based on member profiles."));
-document.getElementById("admin-remove-year-btn").addEventListener("click", () => alert("Years are managed automatically. Remove members from a year to hide it."));
-document.getElementById("admin-add-domain-btn").addEventListener("click", () => alert("Domains are now managed automatically."));
-document.getElementById("admin-remove-domain-btn").addEventListener("click", () => alert("Domains are managed automatically."));
-
+// Fix: Visually disable buttons instead of showing "Broken" alerts
+const adminIds = ["admin-add-year-btn", "admin-remove-year-btn", "admin-add-domain-btn", "admin-remove-domain-btn"];
+adminIds.forEach(id => {
+    const btn = document.getElementById(id);
+    if(btn) {
+        // Clone to remove old listeners
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+        
+        // Apply visual disabled state
+        newBtn.style.opacity = "0.5";
+        newBtn.style.cursor = "not-allowed";
+        newBtn.textContent += " (AUTO)";
+        newBtn.addEventListener("click", () => {
+            alert("System Message: This feature is now automated based on active member profiles. No manual action required.");
+        });
+    }
+});
 // --- INIT ---
 setInterval(updateClock, 1000); updateClock();
 splashScreen.addEventListener('click', () => { 
