@@ -72,8 +72,8 @@
 
     <button id="music-toggle" title="Toggle Music">🔊</button>
     <audio id="bg-music" loop>
-    <source src="music.mp3" type="audio/mpeg"> 
-</audio>
+        <source src="https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3" type="audio/mpeg">
+    </audio>
 
 	<div class="header-branding" role="banner">
 		<img src="https://i.pinimg.com/736x/67/0e/af/670eaf4523e896c4e587bc2b87ab0f4a.jpg" alt="Logo" class="header-logo header-logo-left">
@@ -360,12 +360,12 @@
                             
                             <div class="full-span"><button id="add-member-btn" style="width:100%; background: var(--color-success); color: white;">ADD USER & SEND INVITE</button></div>
                             <div class="full-span" style="margin-top:30px; border-top:1px solid #333; padding-top:20px;">
-                                <label>Remove User</label>
-                                <select id="remove-member-select">
-                                    <option value="" disabled selected>Select User...</option>
+                                <label>Remove User (Hold Ctrl/Cmd to Select Multiple)</label>
+                                <select id="remove-member-select" multiple size="6" style="height: 150px; background: rgba(0,0,0,0.2);">
+                                    <option value="" disabled>Select Users...</option>
                                 </select>
                             </div>
-                            <div class="full-span"><button id="remove-member-btn">Remove User</button></div>
+                            <div class="full-span"><button id="remove-member-btn">Remove Selected User(s)</button></div>
                         </div>
 
                         <div class="member-control-grid" style="margin-top:30px; border-top:1px solid #333; padding-top:20px;">

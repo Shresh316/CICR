@@ -63,7 +63,6 @@ initParticles(); animateParticles();
 // --- DATA LOGIC: SINGLE SOURCE OF TRUTH ---
 
 async function fetchMembers() {
-    // 1. Fetch ALL members (No Active/Inactive Filter)
     const { data, error } = await supabaseClient
         .from('members')
         .select('*')
@@ -71,36 +70,27 @@ async function fetchMembers() {
 
     if (error) { console.error("Error fetching members:", error); return; }
 
-    // 2. Reset Containers
     h4_students = [];
     memberDetails = {};
     memberPhotos = {}; 
-    
-    // 3. Clear Dynamic Lists (Rebuild from scratch)
     DB_YEARS.clear();
     DB_DOMAINS.clear();
 
-    // 4. Populate strictly from DB Data
     data.forEach(member => {
-        // Build Display String
         const memberString = `${member.year}: ${member.name} (${member.domain}) [${member.enrollment}]`;
         h4_students.push(memberString);
         
-        // Map Details
         memberDetails[member.name] = { 
             dob: member.dob || null, 
             email: member.email, 
             phone: member.phone 
         };
         
-        // Extract Unique Groups/Domains (SSOT Logic)
         if(member.year) DB_YEARS.add(member.year);
         if(member.domain) DB_DOMAINS.add(member.domain);
-
         if(member.photo_url) memberPhotos[member.name] = member.photo_url;
     });
 
-    // 5. Reflect changes in UI
     refreshAllDropdowns();
     renderStudents(); 
     renderMemberDirectory(); 
@@ -129,7 +119,6 @@ async function addMember() {
     let year = document.getElementById("new-member-year-select").value;
     let domain = document.getElementById("new-member-group").value; 
 
-    // [SSOT] Handle Custom Inputs via Prompt (Ignoring old HTML inputs)
     if (domain === "Custom") {
         domain = prompt("Enter New Domain/Group Name:");
         if (!domain) return alert("Domain is required.");
@@ -146,7 +135,6 @@ async function addMember() {
     if (!validateEmail(email)) return alert("Invalid Email Address format.");
 
     operateGate(async () => { 
-        // CLEAN INSERT: No 'active' field
         const { error } = await supabaseClient
             .from('members')
             .insert([{ 
@@ -169,37 +157,64 @@ async function addMember() {
 }
 
 async function removeMember() {
-    const val = document.getElementById("remove-member-select").value; 
-    if(!val) return;
-    
-    const namePart = val.split(": ")[1].split(" (")[0].trim();
+    const select = document.getElementById("remove-member-select");
+    const selectedOptions = Array.from(select.selectedOptions); 
 
-    if(confirm(`Permanently DELETE ${namePart} from database?`)) {
-        // HARD DELETE (No status update)
-        const { error } = await supabaseClient
-            .from('members')
-            .delete()
-            .eq('name', namePart);
+    if(selectedOptions.length === 0) return alert("Error: Select at least one user to remove.");
 
-        if (error) {
-            alert("Error removing: " + error.message);
-        } else {
-            await fetchMembers();
-            document.getElementById("remove-member-select").value = "";
-            alert("Member deleted.");
+    const names = selectedOptions.map(opt => opt.value);
+    if(!confirm(`Permanently DELETE ${selectedOptions.length} selected member(s)?`)) return;
+
+    const enrollmentsToDelete = [];
+    const namesToDelete = [];
+
+    names.forEach(val => {
+         const enrollMatch = val.match(/\[(.*?)\]/);
+         if (enrollMatch && enrollMatch[1]) {
+             enrollmentsToDelete.push(enrollMatch[1]);
+         } else {
+             const namePart = val.includes(": ") ? val.split(": ")[1].split(" (")[0].trim() : val;
+             namesToDelete.push(namePart);
+         }
+    });
+
+    operateGate(async () => {
+        let errorOccurred = false;
+
+        if (enrollmentsToDelete.length > 0) {
+            const { error } = await supabaseClient.from('members').delete().in('enrollment', enrollmentsToDelete);
+            if (error) { alert("Error deleting by ID: " + error.message); errorOccurred = true; }
         }
-    }
+
+        if (namesToDelete.length > 0) {
+            const { error } = await supabaseClient.from('members').delete().in('name', namesToDelete);
+            if (error) { alert("Error deleting by Name: " + error.message); errorOccurred = true; }
+        }
+
+        if (!errorOccurred) {
+            await fetchMembers(); 
+            alert("Selected members deleted successfully.");
+            select.value = ""; 
+        }
+    });
 }
 
-// Direct remove from Directory Card
 window.removeMemberDirectly = async (str) => {
-    const namePart = str.split(": ")[1].split(" (")[0].trim();
-    if(confirm(`Permanently DELETE ${namePart}?`)) {
-        const { error } = await supabaseClient
-            .from('members')
-            .delete()
-            .eq('name', namePart);
+    let deleteQuery = null;
+    let confirmName = "";
 
+    const enrollMatch = str.match(/\[(.*?)\]/);
+    if (enrollMatch && enrollMatch[1]) {
+        deleteQuery = supabaseClient.from('members').delete().eq('enrollment', enrollMatch[1]);
+        confirmName = str.split(": ")[1].split(" (")[0]; 
+    } else {
+        const namePart = str.split(": ")[1].split(" (")[0].trim();
+        deleteQuery = supabaseClient.from('members').delete().eq('name', namePart);
+        confirmName = namePart;
+    }
+
+    if(confirm(`Permanently DELETE ${confirmName}?`)) {
+        const { error } = await deleteQuery;
         if (error) { alert("Error removing: " + error.message); } 
         else { await fetchMembers(); alert("Member deleted."); }
     }
@@ -217,14 +232,12 @@ function refreshAllDropdowns() {
 }
 
 function populateGroupSelects() {
-    // Target Elements
-    const yearSelectFilter = document.getElementById("year-select"); // Attendance
-    const yearSelectUser = document.getElementById("new-member-year-select"); // Admin Add
+    const yearSelectFilter = document.getElementById("year-select"); 
+    const yearSelectUser = document.getElementById("new-member-year-select"); 
     const domFilter = document.getElementById("attendance-domain-filter"); 
-    const newMemGrp = document.getElementById("new-member-group"); // Admin Add
-    const teamDomSelect = document.getElementById("team-domain-select"); // Teams Tab
+    const newMemGrp = document.getElementById("new-member-group"); 
+    const teamDomSelect = document.getElementById("team-domain-select"); 
 
-    // Clear Options
     if(yearSelectFilter) yearSelectFilter.innerHTML = "";
     if(yearSelectUser) yearSelectUser.innerHTML = "";
     
@@ -236,14 +249,12 @@ function populateGroupSelects() {
     const currentTeamDom = teamDomSelect ? teamDomSelect.value : "";
     if(teamDomSelect) teamDomSelect.innerHTML = '<option value="ALL">ALL DOMAINS</option>';
 
-    // POPULATE YEARS (From DB_YEARS Set)
     const sortedYears = Array.from(DB_YEARS).sort();
     sortedYears.forEach(y => {
         if(yearSelectFilter) { const opt = document.createElement("option"); opt.value = y; opt.textContent = y; yearSelectFilter.appendChild(opt); }
         if(yearSelectUser) { const opt = document.createElement("option"); opt.value = y; opt.textContent = y; yearSelectUser.appendChild(opt); }
     });
     
-    // POPULATE DOMAINS (From DB_DOMAINS Set)
     const sortedDomains = Array.from(DB_DOMAINS).sort();
     sortedDomains.forEach(d => {
         if(domFilter) { const opt = document.createElement("option"); opt.value = d; opt.textContent = d; domFilter.appendChild(opt); }
@@ -251,11 +262,9 @@ function populateGroupSelects() {
         if(teamDomSelect) { const opt = document.createElement("option"); opt.value = d; opt.textContent = d.toUpperCase(); teamDomSelect.appendChild(opt); }
     });
 
-    // Restore selections
     if(domFilter) domFilter.value = currentDomFilter;
     if(teamDomSelect && currentTeamDom) teamDomSelect.value = currentTeamDom;
 
-    // Add Custom Options for Admin (Triggers Prompt)
     if(newMemGrp) { 
         const cust = document.createElement('option'); 
         cust.value = "Custom"; 
@@ -265,22 +274,19 @@ function populateGroupSelects() {
     
     if(yearSelectUser) {
         const custY = document.createElement('option');
-        custY.value = "Custom";
+        custY.value = "Custom"; 
         custY.textContent = "Add New Year... (Type New)";
         yearSelectUser.appendChild(custY);
     }
 }
 
-// [SAFETY] Dummy function to prevent HTML errors if onchange events still exist
-window.toggleCustomGroupInput = function(selectEl) {
-    // Logic disabled: We now use prompts instead of hidden inputs.
-    // This function ensures the console stays clean if HTML triggers it.
-};
+window.toggleCustomGroupInput = function(selectEl) {};
 
 function populateAllMembersDatalist() {
     allMembersDatalist.innerHTML = ''; 
     const remSel = document.getElementById("remove-member-select");
-    if(remSel) remSel.innerHTML = '<option value="" disabled selected>Select User...</option>';
+    
+    if(remSel) remSel.innerHTML = ''; 
 
     h4_students.forEach(s => { 
         const opt = document.createElement("option"); 
@@ -290,7 +296,7 @@ function populateAllMembersDatalist() {
         if(remSel) {
             const opt2 = document.createElement("option");
             opt2.value = s;
-            opt2.textContent = s;
+            opt2.textContent = s; 
             remSel.appendChild(opt2);
         }
     });
@@ -306,13 +312,11 @@ function populateSchedulingDropdowns() {
     h4_students.forEach(s => { 
         const n = s.includes(": ") ? s.split(": ")[1] : s; 
         
-        // Populate Initiator
         if(selInit) {
             const optI = document.createElement("option"); optI.value = n; optI.textContent = n; 
             selInit.appendChild(optI);
         }
         
-        // Populate Recipient
         if(selRecip) {
             const optR = document.createElement("option"); optR.value = n; optR.textContent = n; 
             selRecip.appendChild(optR); 
@@ -425,30 +429,44 @@ document.getElementById("notif-btn").addEventListener("click", () => {
     panel.classList.toggle("active");
 });
 
+// [FIX] ROBUST BIRTHDAY CHECKER
 function runSystemChecks() {
     const today = new Date();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
     const todayMatch = `${mm}-${dd}`;
-    
-    const lastCheck = localStorage.getItem("last_birthday_check");
-    if(lastCheck === today.toDateString()) return;
+    const todayDateString = today.toDateString();
 
-    let birthdayFound = false;
+    // 1. Optimization: Check LocalStorage first to avoid heavy loops every reload
+    if(localStorage.getItem("last_birthday_check") === todayDateString) return;
+
+    // 2. Scan Members
     for (const [name, details] of Object.entries(memberDetails)) {
-        if(details.dob) {
-            const dobParts = details.dob.split("-");
-            if(dobParts.length === 3) {
-                const dobMatch = `${dobParts[1]}-${dobParts[2]}`;
-                if(dobMatch === todayMatch) {
-                    addNotification(`Happy Birthday to ${name}! 🎂`, "birthday", { name: name, email: details.email });
-                    birthdayFound = true;
+        if (details.dob) {
+            // details.dob format is YYYY-MM-DD
+            const parts = details.dob.split("-");
+            if (parts.length === 3) {
+                const dobMatch = `${parts[1]}-${parts[2]}`; // MM-DD
+                
+                // 3. Match Today
+                if (dobMatch === todayMatch) {
+                    // 4. Duplicate Guard: Check if a notification for this user exists TODAY
+                    const alreadyExists = notifications.some(n => 
+                        n.type === 'birthday' && 
+                        n.metadata?.name === name && 
+                        new Date(n.created_at).toDateString() === todayDateString
+                    );
+
+                    if (!alreadyExists) {
+                        addNotification(`Happy Birthday to ${name}! 🎂`, "birthday", { name: name, email: details.email });
+                    }
                 }
             }
         }
     }
     
-    localStorage.setItem("last_birthday_check", today.toDateString());
+    // Save check state
+    localStorage.setItem("last_birthday_check", todayDateString);
 }
 
 window.sendBirthdayWish = (name, email) => {
@@ -517,7 +535,6 @@ function renderStudents() {
     const ys = Array.from(document.getElementById("year-select").selectedOptions).map(o => o.value);
     const df = document.getElementById("attendance-domain-filter").value;
     
-    // Logic: If selection empty, default to ALL found in DB (which are in DB_YEARS)
     const yearsToRender = ys.length ? ys : Array.from(DB_YEARS);
     
     const filtered = h4_students.filter(s => { 
@@ -937,7 +954,6 @@ document.getElementById("chat-send-btn").addEventListener("click", async () => {
 });
 
 // --- CLOCK & ADMIN PIN ---
-// [RESTORED] Correct Clock Format
 function updateClock() {
     const now = new Date();
     const timeString = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
@@ -955,7 +971,7 @@ document.getElementById("update-pin-btn").addEventListener("click", async () => 
     } else alert("Invalid PIN.");
 });
 
-// --- GOOGLE MEET LOGIC (RESTORED) ---
+// --- GOOGLE MEET LOGIC ---
 function getMeetingTopic() {
     const s = document.getElementById("attendance-subject");
     const custom = document.getElementById("custom-topic-input");
@@ -967,7 +983,7 @@ document.getElementById("create-gmeet-btn")?.addEventListener("click", () => {
     window.open(`https://calendar.google.com/calendar/r/eventedit?text=${encodeURIComponent(topic)}`, '_blank');
 });
 
-// --- CSV EXPORT LOGIC (RESTORED & ADAPTED) ---
+// --- CSV EXPORT LOGIC ---
 document.getElementById("export-excel-btn")?.addEventListener("click", () => {
     if (!cachedAttendanceLogs || cachedAttendanceLogs.length === 0) { alert("No logs to export."); return; }
 
@@ -994,7 +1010,7 @@ document.getElementById("export-excel-btn")?.addEventListener("click", () => {
     document.body.removeChild(link);
 });
 
-// --- SCHEDULER LOGIC (RESTORED) ---
+// --- SCHEDULER LOGIC ---
 document.getElementById("schedule-meeting-btn")?.addEventListener("click", () => {
     const recipientSelect = document.getElementById("schedule-recipient-select");
     const selectedRecipients = Array.from(recipientSelect.selectedOptions).map(o => o.value).join(", ");
@@ -1032,11 +1048,14 @@ splashScreen.addEventListener('click', () => {
         splashScreen.style.display = 'none'; 
         operateGate(() => { 
             appContent.style.display = 'block'; 
-            fetchMembers().then(() => {
-                fetchSettings();
-                fetchNotifications();
+            
+            // [CRITICAL] CHAINED INITIALIZATION TO PREVENT RACE CONDITIONS
+            fetchMembers().then(async () => {
+                await fetchSettings();
+                await fetchNotifications(); // Wait for existing notifs before checking birthdays
                 runSystemChecks();
             });
+
             const savedTab = sessionStorage.getItem("cicr_active_tab"); 
             if(savedTab) switchTab(savedTab, false); else switchTab('attendance'); 
         }); 
@@ -1051,9 +1070,7 @@ document.getElementById("save-data-btn").addEventListener("click", saveData);
 document.getElementById("add-member-btn").addEventListener("click", addMember);
 document.getElementById("remove-member-btn").addEventListener("click", removeMember);
 
-// [FIX] RESTORED MISSING EVENT LISTENERS
-
-// 1. Music Toggle Logic
+// EVENT LISTENERS
 if(musicToggle) {
     musicToggle.addEventListener('click', () => {
         if(bgMusic.paused) {
@@ -1068,14 +1085,11 @@ if(musicToggle) {
     });
 }
 
-// 2. Date Picker Logic (Connecting helper to buttons)
 document.getElementById("open-calendar-btn")?.addEventListener("click", () => openDatePicker("attendance-date"));
 document.getElementById("open-calendar-start-btn")?.addEventListener("click", () => openDatePicker("project-start"));
 document.getElementById("open-calendar-end-btn")?.addEventListener("click", () => openDatePicker("project-end"));
 document.getElementById("open-calendar-scheduler-btn")?.addEventListener("click", () => openDatePicker("schedule-date"));
 
-// 3. Placeholder for export directory
 document.getElementById("export-directory-btn")?.addEventListener("click", () => alert("Exporting directory... (Feature WIP)"));
 
-// Initial Load
 refreshAllDropdowns();
