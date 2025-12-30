@@ -10,7 +10,10 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let h4_students = [];       // Strings: "Year: Name (Domain) [Enroll]"
 let memberDetails = {};     // Object: { Name: { email, phone, dob } }
 let memberPhotos = {};      // Object: { Name: URL }
-let ALL_GROUPS = [];        // Derived dynamically from DB
+
+// DYNAMIC LISTS (Strictly from DB - No Hardcoding)
+let DB_YEARS = new Set();
+let DB_DOMAINS = new Set();
 
 // Local State
 let attendanceState = {};
@@ -60,6 +63,7 @@ initParticles(); animateParticles();
 // --- DATA LOGIC: SINGLE SOURCE OF TRUTH ---
 
 async function fetchMembers() {
+    // 1. Fetch ALL members (No Active/Inactive Filter)
     const { data, error } = await supabaseClient
         .from('members')
         .select('*')
@@ -67,43 +71,40 @@ async function fetchMembers() {
 
     if (error) { console.error("Error fetching members:", error); return; }
 
-    // Reset Containers
+    // 2. Reset Containers
     h4_students = [];
     memberDetails = {};
     memberPhotos = {}; 
-    const groupsSet = new Set(); 
     
-    // Always include standard years/domains to ensure dropdowns aren't empty on fresh start
-    const coreGroups = ["4th Year", "3rd Year", "2nd Year", "1st Year", "Software", "Robotics", "Core"];
-    coreGroups.forEach(g => groupsSet.add(g));
+    // 3. Clear Dynamic Lists (Rebuild from scratch)
+    DB_YEARS.clear();
+    DB_DOMAINS.clear();
 
+    // 4. Populate strictly from DB Data
     data.forEach(member => {
-        if (member.active) {
-            // String Format: "Year: Name (Domain) [Enrollment]"
-            const memberString = `${member.year}: ${member.name} (${member.domain}) [${member.enrollment}]`;
-            h4_students.push(memberString);
-            
-            // Detail Map
-            memberDetails[member.name] = { 
-                dob: member.dob || null, // Ensure DOB is captured
-                email: member.email, 
-                phone: member.phone 
-            };
-            
-            // Dynamic Group Extraction
-            if(member.year) groupsSet.add(member.year);
-            if(member.domain) groupsSet.add(member.domain);
+        // Build Display String
+        const memberString = `${member.year}: ${member.name} (${member.domain}) [${member.enrollment}]`;
+        h4_students.push(memberString);
+        
+        // Map Details
+        memberDetails[member.name] = { 
+            dob: member.dob || null, 
+            email: member.email, 
+            phone: member.phone 
+        };
+        
+        // Extract Unique Groups/Domains (SSOT Logic)
+        if(member.year) DB_YEARS.add(member.year);
+        if(member.domain) DB_DOMAINS.add(member.domain);
 
-            if(member.photo_url) memberPhotos[member.name] = member.photo_url;
-        }
+        if(member.photo_url) memberPhotos[member.name] = member.photo_url;
     });
 
-    ALL_GROUPS = Array.from(groupsSet).sort();
-
+    // 5. Reflect changes in UI
     refreshAllDropdowns();
-    renderStudents(); // Refresh Attendance List
-    renderMemberDirectory(); // Refresh Directory
-    renderTeams(); // Refresh Teams
+    renderStudents(); 
+    renderMemberDirectory(); 
+    renderTeams(); 
 }
 
 async function fetchSettings() {
@@ -118,28 +119,39 @@ async function fetchSettings() {
 // --- ADMIN FUNCTIONS ---
 
 async function addMember() {
-    // Collect Inputs
     const name = document.getElementById("new-member-name").value.trim(); 
     const email = document.getElementById("new-member-email").value.trim(); 
     const phone = document.getElementById("new-member-phone").value.trim();
-    const dob = document.getElementById("new-member-dob").value; // Added DOB input
+    const dob = document.getElementById("new-member-dob").value;
     const batch = document.getElementById("new-member-batch").value.trim();
     const enroll = document.getElementById("new-member-enrollment").value.trim();
-    const year = document.getElementById("new-member-year-select").value;
     
+    let year = document.getElementById("new-member-year-select").value;
     let domain = document.getElementById("new-member-group").value; 
-    // Handle Custom Domain Input
-    if (domain === "Custom") domain = document.getElementById("custom-group-input").value.trim();
+
+    // [SSOT] Handle Custom Inputs via Prompt (Ignoring old HTML inputs)
+    if (domain === "Custom") {
+        domain = prompt("Enter New Domain/Group Name:");
+        if (!domain) return alert("Domain is required.");
+        domain = domain.trim();
+    }
+    
+    if (year === "Custom") {
+        year = prompt("Enter New Year Group (e.g., '5th Year'):");
+        if (!year) return alert("Year is required.");
+        year = year.trim();
+    }
 
     if (!name || !email || !phone || !batch || !enroll || !domain || !year) return alert("All text fields are mandatory.");
     if (!validateEmail(email)) return alert("Invalid Email Address format.");
 
     operateGate(async () => { 
+        // CLEAN INSERT: No 'active' field
         const { error } = await supabaseClient
             .from('members')
             .insert([{ 
                 name, email, phone, dob, year, batch, 
-                enrollment: enroll, domain, active: true, role: 'Member' 
+                enrollment: enroll, domain, role: 'Member' 
             }]);
 
         if (error) {
@@ -150,7 +162,6 @@ async function addMember() {
         await fetchMembers(); 
         showSuccessAnimation(); 
         
-        // Reset Form
         document.getElementById("new-member-name").value = "";
         document.getElementById("new-member-email").value = "";
         document.getElementById("new-member-enrollment").value = "";
@@ -158,42 +169,39 @@ async function addMember() {
 }
 
 async function removeMember() {
-    // Dropdown value format: "Year: Name (Domain) [Enroll]"
     const val = document.getElementById("remove-member-select").value; 
     if(!val) return;
     
-    // Extract Name safely
     const namePart = val.split(": ")[1].split(" (")[0].trim();
 
-    if(confirm(`Permanently remove ${namePart}?`)) {
+    if(confirm(`Permanently DELETE ${namePart} from database?`)) {
+        // HARD DELETE (No status update)
         const { error } = await supabaseClient
             .from('members')
-            .update({ active: false })
+            .delete()
             .eq('name', namePart);
 
         if (error) {
             alert("Error removing: " + error.message);
         } else {
-            // CRITICAL: Refresh data immediately to sync UI
             await fetchMembers();
             document.getElementById("remove-member-select").value = "";
-            alert("Member removed.");
+            alert("Member deleted.");
         }
     }
 }
 
 // Direct remove from Directory Card
 window.removeMemberDirectly = async (str) => {
-    // str format: "Year: Name (Domain)..."
     const namePart = str.split(": ")[1].split(" (")[0].trim();
-    if(confirm(`Permanently remove ${namePart}?`)) {
+    if(confirm(`Permanently DELETE ${namePart}?`)) {
         const { error } = await supabaseClient
             .from('members')
-            .update({ active: false })
+            .delete()
             .eq('name', namePart);
 
         if (error) { alert("Error removing: " + error.message); } 
-        else { await fetchMembers(); alert("Member removed."); }
+        else { await fetchMembers(); alert("Member deleted."); }
     }
 };
 
@@ -216,7 +224,7 @@ function populateGroupSelects() {
     const newMemGrp = document.getElementById("new-member-group"); // Admin Add
     const teamDomSelect = document.getElementById("team-domain-select"); // Teams Tab
 
-    // Clear Options (Keep default placeholders where needed)
+    // Clear Options
     if(yearSelectFilter) yearSelectFilter.innerHTML = "";
     if(yearSelectUser) yearSelectUser.innerHTML = "";
     
@@ -228,37 +236,45 @@ function populateGroupSelects() {
     const currentTeamDom = teamDomSelect ? teamDomSelect.value : "";
     if(teamDomSelect) teamDomSelect.innerHTML = '<option value="ALL">ALL DOMAINS</option>';
 
-    // Sort Groups
-    ALL_GROUPS.sort();
-
-    ALL_GROUPS.forEach(g => {
-        // Distinguish Year vs Domain based on string content (heuristic)
-        if(g.includes("Year")) {
-            if(yearSelectFilter) { const opt = document.createElement("option"); opt.value = g; opt.textContent = g; yearSelectFilter.appendChild(opt); }
-            if(yearSelectUser) { const opt = document.createElement("option"); opt.value = g; opt.textContent = g; yearSelectUser.appendChild(opt); }
-        } else {
-             // It's a Domain
-             if(domFilter) { const opt = document.createElement("option"); opt.value = g; opt.textContent = g; domFilter.appendChild(opt); }
-             if(newMemGrp) { const opt = document.createElement("option"); opt.value = g; opt.textContent = g.toUpperCase(); newMemGrp.appendChild(opt); }
-             if(teamDomSelect) { const opt = document.createElement("option"); opt.value = g; opt.textContent = g.toUpperCase(); teamDomSelect.appendChild(opt); }
-        }
+    // POPULATE YEARS (From DB_YEARS Set)
+    const sortedYears = Array.from(DB_YEARS).sort();
+    sortedYears.forEach(y => {
+        if(yearSelectFilter) { const opt = document.createElement("option"); opt.value = y; opt.textContent = y; yearSelectFilter.appendChild(opt); }
+        if(yearSelectUser) { const opt = document.createElement("option"); opt.value = y; opt.textContent = y; yearSelectUser.appendChild(opt); }
+    });
+    
+    // POPULATE DOMAINS (From DB_DOMAINS Set)
+    const sortedDomains = Array.from(DB_DOMAINS).sort();
+    sortedDomains.forEach(d => {
+        if(domFilter) { const opt = document.createElement("option"); opt.value = d; opt.textContent = d; domFilter.appendChild(opt); }
+        if(newMemGrp) { const opt = document.createElement("option"); opt.value = d; opt.textContent = d.toUpperCase(); newMemGrp.appendChild(opt); }
+        if(teamDomSelect) { const opt = document.createElement("option"); opt.value = d; opt.textContent = d.toUpperCase(); teamDomSelect.appendChild(opt); }
     });
 
-    // Restore selections or Add Custom Logic
+    // Restore selections
     if(domFilter) domFilter.value = currentDomFilter;
     if(teamDomSelect && currentTeamDom) teamDomSelect.value = currentTeamDom;
 
+    // Add Custom Options for Admin (Triggers Prompt)
     if(newMemGrp) { 
         const cust = document.createElement('option'); 
         cust.value = "Custom"; 
-        cust.textContent = "Custom Unit... (Type New)"; 
+        cust.textContent = "Add New Domain... (Type New)"; 
         newMemGrp.appendChild(cust); 
+    }
+    
+    if(yearSelectUser) {
+        const custY = document.createElement('option');
+        custY.value = "Custom";
+        custY.textContent = "Add New Year... (Type New)";
+        yearSelectUser.appendChild(custY);
     }
 }
 
+// [SAFETY] Dummy function to prevent HTML errors if onchange events still exist
 window.toggleCustomGroupInput = function(selectEl) {
-    const wrapper = document.getElementById("custom-group-input-wrapper");
-    if (wrapper) wrapper.style.display = selectEl.value === "Custom" ? "block" : "none";
+    // Logic disabled: We now use prompts instead of hidden inputs.
+    // This function ensures the console stays clean if HTML triggers it.
 };
 
 function populateAllMembersDatalist() {
@@ -267,12 +283,10 @@ function populateAllMembersDatalist() {
     if(remSel) remSel.innerHTML = '<option value="" disabled selected>Select User...</option>';
 
     h4_students.forEach(s => { 
-        // Datalist option (clean name)
         const opt = document.createElement("option"); 
         opt.value = s.includes(": ") ? s.split(": ")[1] : s; 
         allMembersDatalist.appendChild(opt);
         
-        // Remove Select option (full string for parsing)
         if(remSel) {
             const opt2 = document.createElement("option");
             opt2.value = s;
@@ -335,10 +349,9 @@ function renderNotifications() {
     const badge = document.getElementById("notif-badge");
     list.innerHTML = "";
     
-    // Sort local array just in case
     notifications.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
     
-    const unreadCount = notifications.filter(n => !n.is_read).length; // Check DB column is_read
+    const unreadCount = notifications.filter(n => !n.is_read).length; 
     if(unreadCount > 0) { 
         badge.style.display = "flex"; 
         badge.textContent = unreadCount > 9 ? "9+" : unreadCount; 
@@ -376,7 +389,6 @@ function renderNotifications() {
 }
 
 async function addNotification(text, type = "general", metadata = {}) {
-    // Duplicate Check (Client Side primarily)
     const isDuplicate = notifications.some(n => n.text === text && new Date(n.created_at).toDateString() === new Date().toDateString());
     if (isDuplicate) return;
 
@@ -391,8 +403,7 @@ async function addNotification(text, type = "general", metadata = {}) {
 }
 
 window.clearNotifications = async () => {
-    // Mark all as read in DB
-    const { error } = await supabaseClient.from('notifications').update({ is_read: true }).neq('id', 0); // Updates all
+    const { error } = await supabaseClient.from('notifications').update({ is_read: true }).neq('id', 0); 
     if(!error) await fetchNotifications();
 };
 
@@ -407,15 +418,12 @@ function runSystemChecks() {
     const dd = String(today.getDate()).padStart(2, '0');
     const todayMatch = `${mm}-${dd}`;
     
-    // Check LocalStorage to avoid spamming everyday
     const lastCheck = localStorage.getItem("last_birthday_check");
     if(lastCheck === today.toDateString()) return;
 
-    // Birthday Check
     let birthdayFound = false;
     for (const [name, details] of Object.entries(memberDetails)) {
         if(details.dob) {
-            // details.dob format YYYY-MM-DD
             const dobParts = details.dob.split("-");
             if(dobParts.length === 3) {
                 const dobMatch = `${dobParts[1]}-${dobParts[2]}`;
@@ -427,7 +435,6 @@ function runSystemChecks() {
         }
     }
     
-    // Save check state
     localStorage.setItem("last_birthday_check", today.toDateString());
 }
 
@@ -461,7 +468,6 @@ function switchTab(targetTabId, saveToStorage = true) {
         activeContent.classList.add('active'); activeContent.style.display = 'block';
         if (saveToStorage) sessionStorage.setItem("cicr_active_tab", targetTabId);
         
-        // Tab Specific Loads
         if (targetTabId === 'history') renderHistory();
         else if (targetTabId === 'reports') { renderHistory().then(() => calculatePersonalReport()); }
         else if (targetTabId === 'projects') renderProjects();
@@ -493,17 +499,16 @@ securityPinInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') ver
 function renderStudents() {
     const list = document.getElementById("attendance-list"); 
     list.innerHTML = ""; 
-    attendanceState = {}; // Reset state
+    attendanceState = {}; 
     
     const ys = Array.from(document.getElementById("year-select").selectedOptions).map(o => o.value);
     const df = document.getElementById("attendance-domain-filter").value;
     
-    // Default to all years if none selected
-    const yearsToRender = ys.length ? ys : ALL_GROUPS.filter(g => g.includes("Year"));
+    // Logic: If selection empty, default to ALL found in DB (which are in DB_YEARS)
+    const yearsToRender = ys.length ? ys : Array.from(DB_YEARS);
     
     const filtered = h4_students.filter(s => { 
         const [y, r] = s.split(": "); 
-        // Logic: Matches Year AND Matches Domain (if not ALL)
         return yearsToRender.includes(y) && (df === "ALL" || s.includes(`(${df})`)); 
     }).sort();
 
@@ -646,7 +651,6 @@ function calculatePersonalReport() {
         logs.forEach(log => { 
             if(log.attendance_data) { 
                 log.attendance_data.forEach(entry => { 
-                    // Fuzzy match key
                     let key = Object.keys(stats).find(k => k.includes(entry.name));
                     if(!key) { key = entry.name; if(!stats[key]) stats[key] = { year: "Unknown", present: 0, total: 0 }; }
                     stats[key].total++; 
@@ -665,7 +669,7 @@ function calculatePersonalReport() {
         const yearKey = `${y}${y===1?'st':(y===2?'nd':(y===3?'rd':'th'))} Year`;
         const students = Object.entries(stats).filter(([k, v]) => v.year === yearKey);
         
-        if(!students.length) { tbody.innerHTML = `<tr><td colspan="3">No data.</td></tr>`; } 
+        if(!students.length) { tbody.innerHTML = `<tr><td colspan="3">No data for ${yearKey}</td></tr>`; } 
         else {
             students.sort((a,b) => (b[1].present/b[1].total || 0) - (a[1].present/a[1].total || 0));
             students.forEach(([name, data]) => {
@@ -678,7 +682,7 @@ function calculatePersonalReport() {
 }
 
 
-// --- SOCIAL FEED (FIXED) ---
+// --- SOCIAL FEED ---
 
 function toggleImgInput() {
     const type = document.getElementById('social-img-type').value;
@@ -728,10 +732,8 @@ async function renderFeed() {
 
     posts.forEach(post => {
         const id = post.id;
-        // Fix Image Rendering: check if url or base64 exists
         let imgHtml = '';
         if (post.image_data) {
-            // Error handler ensures broken links don't show ugly icon
             imgHtml = `<div class="feed-media-wrapper"><img src="${post.image_data}" class="feed-media" alt="Post Image" onerror="this.style.display='none'"></div>`;
         }
 
@@ -784,7 +786,7 @@ window.deletePost = async (id) => {
 document.getElementById('social-post-btn').addEventListener('click', publishPost);
 
 
-// --- DIRECTORY & TEAMS (NO HEADS) ---
+// --- DIRECTORY & TEAMS ---
 
 function renderMemberDirectory() {
     const grid = document.getElementById("member-directory-grid");
@@ -795,14 +797,13 @@ function renderMemberDirectory() {
     document.getElementById("member-count-badge").textContent = filtered.length;
     
     filtered.forEach(str => {
-        // Parse "Year: Name (Domain)"
         const parts = str.split(": ");
         const name = parts[1].split(" (")[0];
         const domain = parts[1].match(/\((.*?)\)/)[1];
         
         const card = document.createElement("div");
         card.className = "member-card";
-        const removeBtn = isAdminUnlocked ? `<button class="btn-revoke-access" onclick="removeMemberDirectly('${str.replace(/'/g, "\\'")}')">REMOVE USER</button>` : '';
+        const removeBtn = isAdminUnlocked ? `<button class="btn-revoke-access" onclick="removeMemberDirectly('${str.replace(/'/g, "\\'")}')">DELETE</button>` : '';
 
         card.innerHTML = `
             <div class="member-card-photo">${name.charAt(0)}</div>
@@ -822,6 +823,7 @@ function renderTeams() {
     const selectedDomain = domainSelect.value || "Software";
     
     grid.innerHTML = "";
+    // Match based on string includes, but domain list is now strict from DB
     const members = h4_students.filter(s => selectedDomain === "ALL" || s.toLowerCase().includes(selectedDomain.toLowerCase()));
     
     if(members.length === 0) { grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px;color:#666;">No members in ${selectedDomain}.</div>`; return; }
@@ -859,7 +861,6 @@ window.updateMemberPhoto = async (name) => {
 document.getElementById("team-domain-select").addEventListener("change", renderTeams);
 
 // --- EQUIPMENT & PROJECTS ---
-// (Simplified for brevity as they are standard CRUD)
 async function renderEquipmentLogs() {
     const b = document.getElementById("equipment-log-body"); b.innerHTML = '<tr><td colspan="5">Loading...</td></tr>';
     const { data } = await supabaseClient.from('equipment_logs').select('*').eq('is_returned', false);
