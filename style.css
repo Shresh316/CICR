@@ -370,27 +370,6 @@ h3 { color: #fff; font-size: 16px; margin-bottom: 15px; text-transform: uppercas
     box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6), 0 0 15px rgba(102, 252, 241, 0.2);
 }
 
-/* Head of Domain Special Styling */
-.team-card.is-head {
-    border: 2px solid var(--color-tinker);
-    box-shadow: 0 0 20px rgba(255, 173, 0, 0.15);
-}
-.head-badge {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    background: var(--color-tinker);
-    color: #000;
-    font-size: 10px;
-    font-weight: 800;
-    padding: 4px 10px;
-    border-radius: 20px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    z-index: 2;
-    box-shadow: 0 0 10px rgba(255, 173, 0, 0.6);
-}
-
 /* Mail Icon - Top Right Corner */
 .mail-corner-link {
     position: absolute;
@@ -438,10 +417,6 @@ h3 { color: #fff; font-size: 16px; margin-bottom: 15px; text-transform: uppercas
 
 .team-card:hover .team-img {
     border-color: var(--color-accent);
-}
-
-.team-card.is-head .team-img {
-    border-color: var(--color-tinker);
 }
 
 /* Upload Overlay */
@@ -505,19 +480,6 @@ h3 { color: #fff; font-size: 16px; margin-bottom: 15px; text-transform: uppercas
     border-top: 1px dashed #444;
     padding-top: 10px;
     display: none; /* Hidden by default */
-}
-.btn-make-head {
-    background: transparent;
-    border: 1px solid var(--color-tinker);
-    color: var(--color-tinker);
-    font-size: 10px;
-    padding: 4px 10px;
-    border-radius: 4px;
-    cursor: pointer;
-}
-.btn-make-head:hover {
-    background: var(--color-tinker);
-    color: #000;
 }
 
 /* --- ATTENDANCE --- */

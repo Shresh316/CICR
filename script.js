@@ -6,23 +6,19 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // Use 'supabaseClient' to avoid conflict with global library variable
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const currentUser = { id: "ADMIN", name: "Administrator", year: "4th Year", enrollment: "000000" };
+// Data Containers (Single Source of Truth)
+let h4_students = [];       // Strings: "Year: Name (Domain) [Enroll]"
+let memberDetails = {};     // Object: { Name: { email, phone, dob } }
+let memberPhotos = {};      // Object: { Name: URL }
+let ALL_GROUPS = [];        // Derived dynamically from DB
 
-// Dynamic Data Containers (Populated from Supabase)
-let h4_students = []; 
-let memberDetails = {}; 
-let ALL_GROUPS = []; // Derived from DB data
-
-// Legacy LocalStorage (Preserved for non-member features)
+// Local State
 let attendanceState = {};
-let cachedAttendanceLogs = []; // --- NEW: Cache for Analytics to fix missing data ---
-let GLOBAL_SECURITY_PIN = "1407"; // Default fallback
-let notifications = []; // Will be populated from DB
-let domainHeads = {};
-let memberPhotos = {};
-const socialFeedKey = "cicrFeed";
+let cachedAttendanceLogs = []; 
+let GLOBAL_SECURITY_PIN = "1407"; 
+let notifications = []; 
 
-// --- AUDIO ENGINE ---
+// Audio Engine
 const AUDIO = {
     click: new Audio("https://www.soundjay.com/buttons/sounds/button-16.mp3"),
     success: new Audio("https://www.soundjay.com/buttons/sounds/button-09.mp3"),
@@ -51,6 +47,7 @@ function operateGate(callback) { AUDIO.play('transition'); techGate.classList.ad
 function showSuccessAnimation() { AUDIO.play('success'); const overlay = document.getElementById('action-success-overlay'); overlay.style.display = 'flex'; setTimeout(() => { overlay.style.display = 'none'; }, 2000); }
 function openDatePicker(id) { const el = document.getElementById(id); if(el) { try{ el.showPicker(); } catch(e){ el.focus(); el.click(); } } }
 function validateEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
+function formatDateTime(isoString) { if(!isoString) return ''; return new Date(isoString).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
 
 // --- BACKGROUND PARTICLES ---
 const canvas = document.getElementById('particles-canvas'); const ctx = canvas.getContext('2d'); let particles = [];
@@ -60,9 +57,8 @@ function initParticles() { particles = []; const count = Math.floor(window.inner
 function animateParticles() { ctx.clearRect(0, 0, canvas.width, canvas.height); for (let i = 0; i < particles.length; i++) { particles[i].update(); particles[i].draw(); for (let j = i; j < particles.length; j++) { const dx = particles[i].x - particles[j].x; const dy = particles[i].y - particles[j].y; const dist = Math.sqrt(dx * dx + dy * dy); if (dist < 150) { ctx.strokeStyle = `rgba(69, 162, 158, ${1 - dist/150})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y); ctx.lineTo(particles[j].x, particles[j].y); ctx.stroke(); } } } requestAnimationFrame(animateParticles); }
 initParticles(); animateParticles();
 
-// --- SUPABASE MEMBER LOGIC (SINGLE SOURCE OF TRUTH) ---
+// --- DATA LOGIC: SINGLE SOURCE OF TRUTH ---
 
-// --- REPLACE THE EXISTING fetchMembers FUNCTION ---
 async function fetchMembers() {
     const { data, error } = await supabaseClient
         .from('members')
@@ -71,41 +67,45 @@ async function fetchMembers() {
 
     if (error) { console.error("Error fetching members:", error); return; }
 
+    // Reset Containers
     h4_students = [];
     memberDetails = {};
-    memberPhotos = {}; // Reset
-    domainHeads = {};  // Reset
+    memberPhotos = {}; 
     const groupsSet = new Set(); 
+    
+    // Always include standard years/domains to ensure dropdowns aren't empty on fresh start
+    const coreGroups = ["4th Year", "3rd Year", "2nd Year", "1st Year", "Software", "Robotics", "Core"];
+    coreGroups.forEach(g => groupsSet.add(g));
 
     data.forEach(member => {
         if (member.active) {
+            // String Format: "Year: Name (Domain) [Enrollment]"
             const memberString = `${member.year}: ${member.name} (${member.domain}) [${member.enrollment}]`;
             h4_students.push(memberString);
-            memberDetails[member.name] = { dob: null, email: member.email, phone: member.phone };
             
-            // Populate Groups
+            // Detail Map
+            memberDetails[member.name] = { 
+                dob: member.dob || null, // Ensure DOB is captured
+                email: member.email, 
+                phone: member.phone 
+            };
+            
+            // Dynamic Group Extraction
             if(member.year) groupsSet.add(member.year);
             if(member.domain) groupsSet.add(member.domain);
 
-            // --- NEW: Populate Photos from DB ---
             if(member.photo_url) memberPhotos[member.name] = member.photo_url;
-
-            // --- NEW: Populate Roles from DB ---
-            if(member.role === 'Head') domainHeads[member.domain] = member.name;
         }
     });
 
     ALL_GROUPS = Array.from(groupsSet).sort();
-    const defaultGroups = ["4th Year", "3rd Year", "2nd Year", "1st Year", "Software", "Robotics", "Core"];
-    defaultGroups.forEach(g => { if(!ALL_GROUPS.includes(g)) ALL_GROUPS.push(g); });
 
     refreshAllDropdowns();
-    renderStudents();
-    renderMemberDirectory();
-    renderTeams();
+    renderStudents(); // Refresh Attendance List
+    renderMemberDirectory(); // Refresh Directory
+    renderTeams(); // Refresh Teams
 }
-// --- ADD THIS MISSING FUNCTION ---
-// --- ADD THESE NEW FUNCTIONS ---
+
 async function fetchSettings() {
     const { data } = await supabaseClient
         .from('app_settings')
@@ -115,41 +115,31 @@ async function fetchSettings() {
     if(data) GLOBAL_SECURITY_PIN = data.value;
 }
 
-async function fetchNotifications() {
-    const { data } = await supabaseClient
-        .from('notifications')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(20); // Keep it manageable
-    if(data) { 
-        notifications = data; 
-        renderNotifications(); 
-    }
-}
+// --- ADMIN FUNCTIONS ---
 
 async function addMember() {
+    // Collect Inputs
     const name = document.getElementById("new-member-name").value.trim(); 
     const email = document.getElementById("new-member-email").value.trim(); 
     const phone = document.getElementById("new-member-phone").value.trim();
+    const dob = document.getElementById("new-member-dob").value; // Added DOB input
     const batch = document.getElementById("new-member-batch").value.trim();
     const enroll = document.getElementById("new-member-enrollment").value.trim();
     const year = document.getElementById("new-member-year-select").value;
-
-    if (!name || !email || !phone || !batch || !enroll) return alert("All text fields are mandatory.");
-    if (!validateEmail(email)) return alert("Invalid Email Address format.");
-    if (!/^\d{10}$/.test(phone)) return alert("Mobile Number must be exactly 10 digits.");
-
+    
     let domain = document.getElementById("new-member-group").value; 
+    // Handle Custom Domain Input
     if (domain === "Custom") domain = document.getElementById("custom-group-input").value.trim();
-    if (!domain) return alert("Please specify a Domain/Unit.");
+
+    if (!name || !email || !phone || !batch || !enroll || !domain || !year) return alert("All text fields are mandatory.");
+    if (!validateEmail(email)) return alert("Invalid Email Address format.");
 
     operateGate(async () => { 
-        // Insert into Supabase
         const { error } = await supabaseClient
             .from('members')
             .insert([{ 
-                name, email, phone, year, batch, 
-                enrollment: enroll, domain, active: true 
+                name, email, phone, dob, year, batch, 
+                enrollment: enroll, domain, active: true, role: 'Member' 
             }]);
 
         if (error) {
@@ -157,24 +147,22 @@ async function addMember() {
             return;
         }
 
-        // Refresh Data
         await fetchMembers(); 
         showSuccessAnimation(); 
         
-        // Send Email
-        const subject = "Welcome to CICR Team";
-        const body = `Hello ${name},\n\nWelcome to CICR!\n\nPlease join our official WhatsApp Group here:\nhttps://chat.whatsapp.com/K86rBBwgB6jBsP3am3Oatx\n\nRegards,\nCICR Admin`;
-        window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        // Reset Form
+        document.getElementById("new-member-name").value = "";
+        document.getElementById("new-member-email").value = "";
+        document.getElementById("new-member-enrollment").value = "";
     });
 }
 
-// Replaces legacy remove logic
 async function removeMember() {
-    // Used in Admin Tab dropdown
+    // Dropdown value format: "Year: Name (Domain) [Enroll]"
     const val = document.getElementById("remove-member-select").value; 
     if(!val) return;
     
-    // Parse Name from "Year: Name (Domain)..."
+    // Extract Name safely
     const namePart = val.split(": ")[1].split(" (")[0].trim();
 
     if(confirm(`Permanently remove ${namePart}?`)) {
@@ -186,28 +174,17 @@ async function removeMember() {
         if (error) {
             alert("Error removing: " + error.message);
         } else {
+            // CRITICAL: Refresh data immediately to sync UI
             await fetchMembers();
+            document.getElementById("remove-member-select").value = "";
             alert("Member removed.");
         }
     }
 }
-// --- REPLACE EXISTING addNotification ---
-async function addNotification(text, type = "general", metadata = {}) {
-    // Simple duplicate check (optional, but good for UX)
-    const isDuplicate = notifications.some(n => n.text === text && new Date(n.created_at).toDateString() === new Date().toDateString());
-    if (isDuplicate) return;
 
-    const { error } = await supabaseClient
-        .from('notifications')
-        .insert([{ text, type, metadata, is_read: false }]);
-
-    if (!error) {
-        await fetchNotifications(); // Refresh list
-        AUDIO.play('success');
-    }
-}
-// Used in Directory Card buttons
+// Direct remove from Directory Card
 window.removeMemberDirectly = async (str) => {
+    // str format: "Year: Name (Domain)..."
     const namePart = str.split(": ")[1].split(" (")[0].trim();
     if(confirm(`Permanently remove ${namePart}?`)) {
         const { error } = await supabaseClient
@@ -215,96 +192,14 @@ window.removeMemberDirectly = async (str) => {
             .update({ active: false })
             .eq('name', namePart);
 
-        if (error) {
-            alert("Error removing: " + error.message);
-        } else {
-            await fetchMembers();
-            alert("Member removed.");
-        }
+        if (error) { alert("Error removing: " + error.message); } 
+        else { await fetchMembers(); alert("Member removed."); }
     }
 };
 
-// --- DIRECTORY LOGIC (UPDATED) ---
-function renderMemberDirectory() {
-    const grid = document.getElementById("member-directory-grid");
-    const searchInput = document.getElementById("directory-search");
-    if (!grid || !searchInput) return;
 
-    const searchTerm = searchInput.value.toLowerCase();
-    grid.innerHTML = "";
-    
-    const filtered = h4_students.filter(s => s.toLowerCase().includes(searchTerm));
-    const badge = document.getElementById("member-count-badge");
-    if(badge) badge.textContent = filtered.length;
-    
-    if(filtered.length === 0) {
-        grid.innerHTML = `<p style="color:#666; grid-column:1/-1; text-align:center;">No members found matching "${searchTerm}"</p>`;
-        return;
-    }
+// --- UI POPULATION & DROPDOWNS ---
 
-    filtered.forEach(memberStr => {
-        const parts = memberStr.split(": ");
-        const year = parts[0];
-        const rest = parts[1] || "";
-        const name = rest.split(" (")[0];
-        const domainMatch = rest.match(/\((.*?)\)/);
-        const domain = domainMatch ? domainMatch[1] : "Member";
-
-        const card = document.createElement("div");
-        card.className = "member-card";
-        const initial = name.charAt(0).toUpperCase();
-        
-        const removeBtn = isAdminUnlocked 
-            ? `<button class="btn-revoke-access" onclick="removeMemberDirectly('${memberStr.replace(/'/g, "\\'")}')">REMOVE USER</button>` 
-            : '';
-
-        card.innerHTML = `
-            <div class="member-card-photo">${initial}</div>
-            <div class="member-card-name">${name}</div>
-            <div class="member-card-detail" style="color:var(--color-accent);">${year}</div>
-            <div class="member-card-detail">${domain} Unit</div>
-            ${removeBtn}
-        `;
-        grid.appendChild(card);
-    });
-}
-
-// Hook up CSV Export
-if(document.getElementById("export-directory-btn")) {
-    const oldBtn = document.getElementById("export-directory-btn");
-    const newBtn = oldBtn.cloneNode(true);
-    oldBtn.parentNode.replaceChild(newBtn, oldBtn);
-
-    newBtn.addEventListener("click", async () => {
-        if(!confirm("Download full member database as CSV?")) return;
-        const { data, error } = await supabaseClient
-            .from('members')
-            .select('name, enrollment, email, phone, year, batch, domain, role, active')
-            .order('year', { ascending: false });
-
-        if (error) { alert("Export failed: " + error.message); return; }
-
-        const headers = ["Name", "Enrollment", "Email", "Phone", "Year", "Batch", "Domain", "Role", "Active"];
-        let csvContent = headers.join(",") + "\n";
-        data.forEach(row => {
-            const rowData = [
-                `"${row.name}"`, `"${row.enrollment}"`, `"${row.email}"`, `"${row.phone || ''}"`,
-                `"${row.year}"`, `"${row.batch}"`, `"${row.domain}"`, `"${row.role}"`, row.active ? "Yes" : "No"
-            ];
-            csvContent += rowData.join(",") + "\n";
-        });
-
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href = url; a.download = `CICR_Database_Export_${new Date().toISOString().split('T')[0]}.csv`; a.click();
-    });
-}
-if(document.getElementById("directory-search")) {
-    document.getElementById("directory-search").addEventListener("input", renderMemberDirectory);
-}
-
-
-// --- DROPDOWN & UI POPULATION (DEPENDS ON FETCHED DATA) ---
 function refreshAllDropdowns() { 
     populateAllMembersDatalist(); 
     populateSchedulingDropdowns(); 
@@ -314,417 +209,364 @@ function refreshAllDropdowns() {
 }
 
 function populateGroupSelects() {
-    const yearSelectFilter = document.getElementById("year-select");
-    const yearSelectUser = document.getElementById("new-member-year-select");
-    const adminYearRemove = document.getElementById("admin-remove-year-select");
+    // Target Elements
+    const yearSelectFilter = document.getElementById("year-select"); // Attendance
+    const yearSelectUser = document.getElementById("new-member-year-select"); // Admin Add
     const domFilter = document.getElementById("attendance-domain-filter"); 
-    const newMemGrp = document.getElementById("new-member-group");
-    const adminDomRemove = document.getElementById("admin-remove-domain-select");
+    const newMemGrp = document.getElementById("new-member-group"); // Admin Add
+    const teamDomSelect = document.getElementById("team-domain-select"); // Teams Tab
 
-    // Reset Options
+    // Clear Options (Keep default placeholders where needed)
     if(yearSelectFilter) yearSelectFilter.innerHTML = "";
     if(yearSelectUser) yearSelectUser.innerHTML = "";
-    if(adminYearRemove) adminYearRemove.innerHTML = '<option value="" disabled selected>-- Select --</option>';
     
-    // Save current filter value
-    const currentDomFilterVal = domFilter ? domFilter.value : "ALL";
+    const currentDomFilter = domFilter ? domFilter.value : "ALL";
     if(domFilter) domFilter.innerHTML = '<option value="ALL">All Domains</option>';
+    
     if(newMemGrp) newMemGrp.innerHTML = '';
-    if(adminDomRemove) adminDomRemove.innerHTML = '<option value="" disabled selected>-- Select --</option>';
+    
+    const currentTeamDom = teamDomSelect ? teamDomSelect.value : "";
+    if(teamDomSelect) teamDomSelect.innerHTML = '<option value="ALL">ALL DOMAINS</option>';
 
+    // Sort Groups
     ALL_GROUPS.sort();
 
     ALL_GROUPS.forEach(g => {
+        // Distinguish Year vs Domain based on string content (heuristic)
         if(g.includes("Year")) {
             if(yearSelectFilter) { const opt = document.createElement("option"); opt.value = g; opt.textContent = g; yearSelectFilter.appendChild(opt); }
             if(yearSelectUser) { const opt = document.createElement("option"); opt.value = g; opt.textContent = g; yearSelectUser.appendChild(opt); }
-            if(adminYearRemove) { const opt = document.createElement("option"); opt.value = g; opt.textContent = g; adminYearRemove.appendChild(opt); }
         } else {
+             // It's a Domain
              if(domFilter) { const opt = document.createElement("option"); opt.value = g; opt.textContent = g; domFilter.appendChild(opt); }
              if(newMemGrp) { const opt = document.createElement("option"); opt.value = g; opt.textContent = g.toUpperCase(); newMemGrp.appendChild(opt); }
-             if(adminDomRemove) { const opt = document.createElement("option"); opt.value = g; opt.textContent = g; adminDomRemove.appendChild(opt); }
+             if(teamDomSelect) { const opt = document.createElement("option"); opt.value = g; opt.textContent = g.toUpperCase(); teamDomSelect.appendChild(opt); }
         }
     });
 
-    if(domFilter) domFilter.value = currentDomFilterVal;
-   if(newMemGrp) { 
+    // Restore selections or Add Custom Logic
+    if(domFilter) domFilter.value = currentDomFilter;
+    if(teamDomSelect && currentTeamDom) teamDomSelect.value = currentTeamDom;
+
+    if(newMemGrp) { 
         const cust = document.createElement('option'); 
         cust.value = "Custom"; 
         cust.textContent = "Custom Unit... (Type New)"; 
         newMemGrp.appendChild(cust); 
-        
-        // Fix: Ensure the custom input is shown/hidden correctly based on current state
-        const wrapper = document.getElementById("custom-group-input-wrapper");
-        if(wrapper) wrapper.style.display = newMemGrp.value === "Custom" ? "block" : "none";
     }
 }
+
 window.toggleCustomGroupInput = function(selectEl) {
-    const customInputWrapper = document.getElementById("custom-group-input-wrapper");
-    if (customInputWrapper) {
-        customInputWrapper.style.display = selectEl.value === "Custom" ? "block" : "none";
-    }
+    const wrapper = document.getElementById("custom-group-input-wrapper");
+    if (wrapper) wrapper.style.display = selectEl.value === "Custom" ? "block" : "none";
 };
 
 function populateAllMembersDatalist() {
     allMembersDatalist.innerHTML = ''; 
-    h4_students.forEach(s => { const opt = document.createElement("option"); opt.value = s.includes(": ") ? s.split(": ")[1] : s; allMembersDatalist.appendChild(opt); });
     const remSel = document.getElementById("remove-member-select");
-    if(remSel) { remSel.innerHTML = ""; h4_students.forEach(s => { const opt = document.createElement("option"); opt.value = s; remSel.appendChild(opt); }); }
+    if(remSel) remSel.innerHTML = '<option value="" disabled selected>Select User...</option>';
+
+    h4_students.forEach(s => { 
+        // Datalist option (clean name)
+        const opt = document.createElement("option"); 
+        opt.value = s.includes(": ") ? s.split(": ")[1] : s; 
+        allMembersDatalist.appendChild(opt);
+        
+        // Remove Select option (full string for parsing)
+        if(remSel) {
+            const opt2 = document.createElement("option");
+            opt2.value = s;
+            opt2.textContent = s;
+            remSel.appendChild(opt2);
+        }
+    });
 }
+
 function populateSchedulingDropdowns() { 
-    const sel = document.getElementById("schedule-recipient-select"); if(!sel) return; sel.innerHTML = ''; h4_students.forEach(s => { const n = s.includes(": ") ? s.split(": ")[1] : s; const rO = document.createElement("option"); rO.value = n; rO.textContent = n; sel.appendChild(rO); });
+    const sel = document.getElementById("schedule-recipient-select"); 
+    if(!sel) return; 
+    sel.innerHTML = ''; 
+    h4_students.forEach(s => { 
+        const n = s.includes(": ") ? s.split(": ")[1] : s; 
+        const rO = document.createElement("option"); rO.value = n; rO.textContent = n; 
+        sel.appendChild(rO); 
+    });
 }
+
 function populateProjectMembersDropdown() {
-    const sel = document.getElementById("project-members-select"); if(!sel) return; sel.innerHTML = ''; h4_students.forEach(s => { const n = s.includes(": ") ? s.split(": ")[1] : s; const opt = document.createElement("option"); opt.value = n; opt.textContent = n; sel.appendChild(opt); });
+    const sel = document.getElementById("project-members-select"); 
+    if(!sel) return; 
+    sel.innerHTML = ''; 
+    h4_students.forEach(s => { 
+        const n = s.includes(": ") ? s.split(": ")[1] : s; 
+        const opt = document.createElement("option"); opt.value = n; opt.textContent = n; 
+        sel.appendChild(opt); 
+    });
 }
+
 function populateChatSenderSelect() {
     const sel = document.getElementById("chat-sender-select"); 
     if(!sel) return; 
     sel.innerHTML = '<option value="ME">ME (Anonymous)</option>';
-    h4_students.forEach(s => { const n = s.includes(": ") ? s.split(": ")[1] : s; const simpleName = n.split(" [")[0]; const opt = document.createElement("option"); opt.value = simpleName; opt.textContent = simpleName; sel.appendChild(opt); });
+    h4_students.forEach(s => { 
+        const n = s.includes(": ") ? s.split(": ")[1] : s; 
+        const simpleName = n.split(" [")[0]; 
+        const opt = document.createElement("option"); opt.value = simpleName; opt.textContent = simpleName; 
+        sel.appendChild(opt); 
+    });
 }
 
-// --- NOTIFICATION & SYSTEMS ---
+// --- NOTIFICATIONS & SYSTEM CHECKS ---
+
+async function fetchNotifications() {
+    const { data } = await supabaseClient
+        .from('notifications')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(20);
+    if(data) { 
+        notifications = data; 
+        renderNotifications(); 
+    }
+}
+
 function renderNotifications() {
     const list = document.getElementById("notif-list");
     const badge = document.getElementById("notif-badge");
     list.innerHTML = "";
-    notifications.sort((a,b) => b.id - a.id);
-    const unreadCount = notifications.filter(n => !n.read).length;
-    if(unreadCount > 0) { badge.style.display = "flex"; badge.textContent = unreadCount > 9 ? "9+" : unreadCount; } else { badge.style.display = "none"; }
+    
+    // Sort local array just in case
+    notifications.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+    
+    const unreadCount = notifications.filter(n => !n.is_read).length; // Check DB column is_read
+    if(unreadCount > 0) { 
+        badge.style.display = "flex"; 
+        badge.textContent = unreadCount > 9 ? "9+" : unreadCount; 
+    } else { 
+        badge.style.display = "none"; 
+    }
 
-    if(notifications.length === 0) { list.innerHTML = '<li style="padding:15px; text-align:center; color:#666;">No new alerts.</li>'; return; }
+    if(notifications.length === 0) { 
+        list.innerHTML = '<li style="padding:15px; text-align:center; color:#666;">No new alerts.</li>'; 
+        return; 
+    }
 
     notifications.forEach(n => {
         const li = document.createElement("li");
-        li.className = `notif-item ${!n.read ? 'unread' : ''}`;
-        let icon = "🔔"; let actionButton = "";
+        li.className = `notif-item ${!n.is_read ? 'unread' : ''}`;
+        
+        let icon = "🔔"; 
+        let actionButton = "";
+        
         if(n.type === "birthday") {
             icon = "🎂";
-            if(n.metadata && n.metadata.name) {
-                const email = n.metadata.email || ""; 
-                actionButton = `<button onclick="sendBirthdayWish('${n.metadata.name.replace(/'/g, "\\'")}', '${email}')" style="margin-top:5px; background:var(--color-accent-dim); color:white; border:none; border-radius:4px; padding:4px 8px; font-size:10px; cursor:pointer;">✉️ Send Wish</button>`;
+            if(n.metadata && n.metadata.email) {
+                 actionButton = `<button onclick="sendBirthdayWish('${n.metadata.name.replace(/'/g, "\\'")}', '${n.metadata.email}')" style="margin-top:5px; background:var(--color-accent-dim); color:white; border:none; border-radius:4px; padding:4px 8px; font-size:10px; cursor:pointer;">✉️ Send Wish</button>`;
             }
         }
         if(n.type === "equipment") icon = "⚠️";
         if(n.type === "social") icon = "💬";
 
-        li.innerHTML = `<div><span class="notif-type-icon">${icon}</span> ${n.text}</div>${actionButton}<span class="notif-time">${new Date(n.id).toLocaleDateString()} ${new Date(n.id).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>`;
+        li.innerHTML = `
+            <div><span class="notif-type-icon">${icon}</span> ${n.text}</div>
+            ${actionButton}
+            <span class="notif-time">${formatDateTime(n.created_at)}</span>`;
         list.appendChild(li);
     });
 }
-function addNotification(text, type = "general", metadata = {}) {
-    const todayStr = new Date().toDateString();
-    const isDuplicate = notifications.some(n => n.text === text && new Date(n.id).toDateString() === todayStr);
-    if(!isDuplicate) {
-        notifications.unshift({ id: Date.now(), text, type, read: false, metadata: metadata });
-        localStorage.setItem("cicrNotifications", JSON.stringify(notifications));
-        renderNotifications();
+
+async function addNotification(text, type = "general", metadata = {}) {
+    // Duplicate Check (Client Side primarily)
+    const isDuplicate = notifications.some(n => n.text === text && new Date(n.created_at).toDateString() === new Date().toDateString());
+    if (isDuplicate) return;
+
+    const { error } = await supabaseClient
+        .from('notifications')
+        .insert([{ text, type, metadata, is_read: false }]);
+
+    if (!error) {
+        await fetchNotifications(); 
         AUDIO.play('success');
     }
 }
-window.clearNotifications = () => { notifications = []; localStorage.setItem("cicrNotifications", JSON.stringify(notifications)); renderNotifications(); };
+
+window.clearNotifications = async () => {
+    // Mark all as read in DB
+    const { error } = await supabaseClient.from('notifications').update({ is_read: true }).neq('id', 0); // Updates all
+    if(!error) await fetchNotifications();
+};
+
 document.getElementById("notif-btn").addEventListener("click", () => {
     const panel = document.getElementById("notif-panel");
     panel.classList.toggle("active");
-    if(panel.classList.contains("active")) {
-        notifications.forEach(n => n.read = true);
-        localStorage.setItem("cicrNotifications", JSON.stringify(notifications));
-        document.getElementById("notif-badge").style.display = "none";
-    }
 });
+
 function runSystemChecks() {
     const today = new Date();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
     const todayMatch = `${mm}-${dd}`;
     
-    // Birthday Check (Uses memberDetails populated from DB)
+    // Check LocalStorage to avoid spamming everyday
+    const lastCheck = localStorage.getItem("last_birthday_check");
+    if(lastCheck === today.toDateString()) return;
+
+    // Birthday Check
+    let birthdayFound = false;
     for (const [name, details] of Object.entries(memberDetails)) {
         if(details.dob) {
+            // details.dob format YYYY-MM-DD
             const dobParts = details.dob.split("-");
-            const dobMatch = `${dobParts[1]}-${dobParts[2]}`;
-            if(dobMatch === todayMatch) {
-                addNotification(`Happy Birthday to ${name}! 🎂 Send them a wish!`, "birthday", { name: name, email: details.email });
+            if(dobParts.length === 3) {
+                const dobMatch = `${dobParts[1]}-${dobParts[2]}`;
+                if(dobMatch === todayMatch) {
+                    addNotification(`Happy Birthday to ${name}! 🎂`, "birthday", { name: name, email: details.email });
+                    birthdayFound = true;
+                }
             }
         }
     }
-    // Equipment Check
-    const eqLogs = JSON.parse(localStorage.getItem("cicrEquipment") || "[]");
-    eqLogs.forEach(log => {
-        const returnDate = new Date(log.returnDate);
-        const diffTime = returnDate - today;
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-        if(diffDays <= 0) addNotification(`OVERDUE: ${log.name} (Issued to ${log.issuedTo}) was due on ${log.returnDate}.`, "equipment");
-        else if (diffDays <= 2) addNotification(`Reminder: ${log.name} (Issued to ${log.issuedTo}) due in ${diffDays} days.`, "equipment");
-    });
+    
+    // Save check state
+    localStorage.setItem("last_birthday_check", today.toDateString());
 }
+
 window.sendBirthdayWish = (name, email) => {
     const subject = `Happy Birthday ${name}! 🎂`;
-    const body = `🎉 Happy Birthday ${name}! 🎉\n\nOn behalf of the entire CICR family, we extend our warmest birthday wishes to you. Your enthusiasm, dedication, and innovative spirit truly reflect the core values of our club.\n\nWarm regards,\nTeam CICR 🚀`;
+    const body = `🎉 Happy Birthday ${name}! 🎉\n\nOn behalf of CICR, we wish you a fantastic day!\n\nRegards,\nTeam CICR`;
     window.location.href = `mailto:${email || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 };
 
 // --- SECURITY & TABS ---
 let pendingTabId = null; let pendingAction = null; let isAdminUnlocked = false;
+
 function switchTab(targetTabId, saveToStorage = true) {
     AUDIO.play('click');
     if ((targetTabId === 'admin' || targetTabId === 'history' || targetTabId === 'directory') && !isAdminUnlocked) {
-        pendingTabId = targetTabId; securityMessage.textContent = "This section requires High-Level Security Clearance."; securityOverlay.style.display = 'flex'; securityPinInput.value = ''; securityPinInput.focus(); return;
-    }
-    tabLinks.forEach(link => { link.classList.remove('active'); link.setAttribute('aria-selected', 'false'); });
-    tabContents.forEach(content => { content.classList.remove('active'); content.style.display = 'none'; });
-    const activeLink = document.querySelector(`.tab-link[data-tab="${targetTabId}"]`); const activeContent = document.getElementById(`${targetTabId}-content`);
-    if (activeLink && activeContent) {
-        activeLink.classList.add('active'); activeLink.setAttribute('aria-selected', 'true'); activeContent.classList.add('active'); activeContent.style.display = 'block';
-        if (saveToStorage) sessionStorage.setItem("cicr_active_tab", targetTabId);
-        
-        // Render specific tab content
-        if (targetTabId === 'history') renderHistory();
-        else if (targetTabId === 'reports') { 
-    // Ensure we have data before calculating
-    renderHistory().then(() => {
-        try { calculatePersonalReport(); } catch(e) { console.error("Analytics Error", e); } 
-    });
-}
-        else if (targetTabId === 'projects') renderProjects();
-        else if (targetTabId === 'chat') { loadChat(); scrollChat(); }
-        else if (targetTabId === 'admin') { populateGroupSelects(); }
-        else if (targetTabId === 'equipment') { renderEquipmentLogs(); }
-        else if (targetTabId === 'directory') renderMemberDirectory();
-        else if (targetTabId === 'scheduling') populateSchedulingDropdowns();
-        else if (targetTabId === 'social') renderFeed();
-        else if (targetTabId === 'teams') { populateTeamDropdown(); renderTeams(); }
-    }
-}
-function verifySecurityPin() {
-    if(securityPinInput.value === GLOBAL_SECURITY_PIN) { isAdminUnlocked = true; securityOverlay.style.display = 'none'; if(pendingTabId) { switchTab(pendingTabId); pendingTabId = null; } if(pendingAction) { pendingAction(); pendingAction = null; } } 
-    else { alert("ACCESS DENIED: INCORRECT PIN"); securityPinInput.value = ''; securityPinInput.focus(); }
-}
-unlockBtn.addEventListener('click', verifySecurityPin); securityCancel.addEventListener('click', () => { securityOverlay.style.display = 'none'; pendingTabId = null; pendingAction = null; });
-securityPinInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') verifySecurityPin(); });
-
-// --- ATTENDANCE & HISTORY (LOCAL STORAGE FOR NOW) ---
-// --- NEW renderHistory (Supabase) ---
-async function renderHistory() {
-    const list = document.getElementById("history-list");
-    // Show loading state
-    list.innerHTML = '<li style="padding:20px; text-align:center; opacity:0.6;">Loading records...</li>';
-    
-    // Fetch from Supabase
-    const { data: logs, error } = await supabaseClient
-        .from('attendance_logs')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-    if (error) {
-        console.error("Error loading history:", error);
-        list.innerHTML = '<li style="padding:20px; text-align:center; color:var(--color-danger);">Error loading data.</li>';
+        pendingTabId = targetTabId; 
+        securityMessage.textContent = "This section requires High-Level Security Clearance."; 
+        securityOverlay.style.display = 'flex'; 
+        securityPinInput.value = ''; securityPinInput.focus(); 
         return;
     }
-
-    // --- FIX: Update global cache for Analytics ---
-    cachedAttendanceLogs = logs || [];
-
-    list.innerHTML = "";
-    if (!logs || logs.length === 0) { 
-        list.innerHTML = '<li style="padding:20px; text-align:center; opacity:0.6;">No attendance records found.</li>'; 
-        return; 
-    }
     
-    logs.forEach(log => {
-        // Map DB JSONB 'attendance_data' to the UI's expected 'attendance' list
-        const attendanceList = log.attendance_data || []; // Safety check
+    tabLinks.forEach(link => { link.classList.remove('active'); link.setAttribute('aria-selected', 'false'); });
+    tabContents.forEach(content => { content.classList.remove('active'); content.style.display = 'none'; });
+    
+    const activeLink = document.querySelector(`.tab-link[data-tab="${targetTabId}"]`); 
+    const activeContent = document.getElementById(`${targetTabId}-content`);
+    
+    if (activeLink && activeContent) {
+        activeLink.classList.add('active'); activeLink.setAttribute('aria-selected', 'true'); 
+        activeContent.classList.add('active'); activeContent.style.display = 'block';
+        if (saveToStorage) sessionStorage.setItem("cicr_active_tab", targetTabId);
         
-        const presentCount = attendanceList.filter(s => s.status === "PRESENT").length;
-        const totalCount = attendanceList.length;
-        const percent = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
-        
-        const li = document.createElement("li"); 
-        li.className = "history-item";
-        
-        li.innerHTML = `
-            <div class="history-header-wrapper">
-                <div style="display:flex; align-items:center;">
-                    <input type="checkbox" class="history-checkbox" value="${log.id}">
-                    <div class="history-info" onclick="toggleHistoryDetail('${log.id}')" style="cursor:pointer;">
-                        <span class="history-title">${log.topic}</span>
-                        <span class="history-date">${log.date}</span>
-                        <span class="history-meta">${presentCount}/${totalCount} Present (${percent}%)</span>
-                    </div>
-                </div>
-                <button class="btn-utility" style="padding:5px 10px; font-size:10px;" onclick="toggleHistoryDetail('${log.id}')">EXPAND</button>
-            </div>
-            <div id="history-detail-${log.id}" class="history-details">
-                <h4 style="color:#fff; margin-bottom:10px; border-bottom:1px solid #333; padding-bottom:5px;">Attendance Sheet</h4>
-                <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:5px;">
-                    ${attendanceList.map(s => `<div style="font-size:11px; color:${s.status==='PRESENT'?'var(--color-success)':'var(--color-danger)'}">${s.name}</div>`).join('')}
-                </div>
-            </div>`;
-        list.appendChild(li);
-    });
+        // Tab Specific Loads
+        if (targetTabId === 'history') renderHistory();
+        else if (targetTabId === 'reports') { renderHistory().then(() => calculatePersonalReport()); }
+        else if (targetTabId === 'projects') renderProjects();
+        else if (targetTabId === 'chat') { loadChat(); scrollChat(); }
+        else if (targetTabId === 'equipment') renderEquipmentLogs();
+        else if (targetTabId === 'directory') renderMemberDirectory();
+        else if (targetTabId === 'social') renderFeed();
+        else if (targetTabId === 'teams') renderTeams();
+    }
 }
-window.toggleHistoryDetail = (id) => { const el = document.getElementById(`history-detail-${id}`); if(el) el.style.display = el.style.display === "block" ? "none" : "block"; };
-document.getElementById('clear-history-btn').addEventListener('click', async () => {
-    if(!isAdminUnlocked) { 
-        securityMessage.textContent = "Admin PIN required to Clear History."; 
-        securityOverlay.style.display = 'flex'; 
+
+function verifySecurityPin() {
+    if(securityPinInput.value === GLOBAL_SECURITY_PIN) { 
+        isAdminUnlocked = true; 
+        securityOverlay.style.display = 'none'; 
+        if(pendingTabId) { switchTab(pendingTabId); pendingTabId = null; } 
+        if(pendingAction) { pendingAction(); pendingAction = null; } 
+    } else { 
+        alert("ACCESS DENIED"); 
         securityPinInput.value = ''; securityPinInput.focus(); 
-        // No pendingAction for safety on destructive acts
-        return; 
     }
-
-    if(confirm("⚠ WARNING: This will permanently DELETE ALL attendance logs from the database.\nAre you sure?")) {
-        // Delete all rows where ID is not null (effectively all)
-        const { error } = await supabaseClient
-            .from('attendance_logs')
-            .delete()
-            .neq('id', '00000000-0000-0000-0000-000000000000'); // Safety delete all
-
-        if(error) {
-            alert("Delete failed: " + error.message);
-        } else {
-            await fetchAttendanceLogs(); // Refresh Cache
-            renderHistory(); // Refresh UI
-            // Optional: Recalculate analytics
-            try { calculatePersonalReport(); } catch(e){}
-            showSuccessAnimation();
-        }
-    }
-});
-document.getElementById('remove-selected-btn').addEventListener('click', async () => {
-    if(!isAdminUnlocked) { 
-        securityMessage.textContent = "Admin PIN required to Delete Logs."; 
-        securityOverlay.style.display = 'flex'; 
-        securityPinInput.value = ''; securityPinInput.focus(); 
-        return; 
-    }
-
-    const selectedIds = Array.from(document.querySelectorAll('.history-checkbox:checked')).map(cb => cb.value);
-    if(!selectedIds.length) return alert("No logs selected.");
-
-    if(confirm(`Permanently delete ${selectedIds.length} selected logs from database?`)) {
-        const { error } = await supabaseClient
-            .from('attendance_logs')
-            .delete()
-            .in('id', selectedIds);
-
-        if(error) {
-            alert("Delete failed: " + error.message);
-        } else {
-            await fetchAttendanceLogs(); // Refresh Cache
-            renderHistory(); // Refresh UI
-            try { calculatePersonalReport(); } catch(e){}
-            showSuccessAnimation();
-        }
-    }
-});
-// --- NEW Export Logic (Supabase) ---
-
-// 1. Export All
-document.getElementById('export-excel-btn').addEventListener('click', async () => {
-    const { data: logs, error } = await supabaseClient
-        .from('attendance_logs')
-        .select('*')
-        .order('date', { ascending: false });
-        
-    if(error) return alert("Export failed: " + error.message);
-    
-    // Map DB structure to Export function structure
-    const formattedLogs = logs.map(l => ({
-        date: l.date,
-        topic: l.topic,
-        attendance: l.attendance_data
-    }));
-    
-    exportLogsToCSV(formattedLogs, 'cicr_all_attendance.csv');
-});
-
-// 2. Export Selected
-document.getElementById('export-selected-btn').addEventListener('click', async () => {
-    // Get selected UUIDs
-    const selectedIds = Array.from(document.querySelectorAll('.history-checkbox:checked')).map(cb => cb.value);
-    if(!selectedIds.length) return alert("Please select logs to export first.");
-    
-    const { data: logs, error } = await supabaseClient
-        .from('attendance_logs')
-        .select('*')
-        .in('id', selectedIds) // Filter by IDs
-        .order('date', { ascending: false });
-
-    if(error) return alert("Export failed: " + error.message);
-
-    const formattedLogs = logs.map(l => ({
-        date: l.date,
-        topic: l.topic,
-        attendance: l.attendance_data
-    }));
-    
-    exportLogsToCSV(formattedLogs, 'cicr_selected_attendance.csv');
-}); 
-function exportLogsToCSV(logs, filename) {
-    if(!logs.length) return alert("No data to export.");
-    let csv = "Date,Topic,Name,Status\n";
-    logs.forEach(l => { l.attendance.forEach(s => { csv += `${l.date},"${l.topic}","${s.name}",${s.status}\n`; }); });
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
 }
+unlockBtn.addEventListener('click', verifySecurityPin); 
+securityCancel.addEventListener('click', () => { securityOverlay.style.display = 'none'; pendingTabId = null; pendingAction = null; });
+securityPinInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') verifySecurityPin(); });
+
+// --- ATTENDANCE LOGIC ---
 
 function renderStudents() {
-    const list = document.getElementById("attendance-list"); list.innerHTML = ""; attendanceState = {};
+    const list = document.getElementById("attendance-list"); 
+    list.innerHTML = ""; 
+    attendanceState = {}; // Reset state
+    
     const ys = Array.from(document.getElementById("year-select").selectedOptions).map(o => o.value);
     const df = document.getElementById("attendance-domain-filter").value;
-    const yearsToRender = ys.length ? ys : ["4th Year", "3rd Year", "2nd Year", "1st Year"];
-    const filtered = h4_students.filter(s => { const [y, r] = s.split(": "); return yearsToRender.includes(y) && (df === "ALL" || s.includes(`(${df})`)); }).sort();
-    if (!filtered.length) { list.innerHTML = `<li style="padding:15px; opacity:0.7;">No users found.</li>`; return; }
+    
+    // Default to all years if none selected
+    const yearsToRender = ys.length ? ys : ALL_GROUPS.filter(g => g.includes("Year"));
+    
+    const filtered = h4_students.filter(s => { 
+        const [y, r] = s.split(": "); 
+        // Logic: Matches Year AND Matches Domain (if not ALL)
+        return yearsToRender.includes(y) && (df === "ALL" || s.includes(`(${df})`)); 
+    }).sort();
+
+    if (!filtered.length) { list.innerHTML = `<li style="padding:15px; opacity:0.7;">No users found for selected filters.</li>`; return; }
+
     filtered.forEach(s => {
         const [r, n] = s.split(": "); 
         const id = s.replace(/[^a-zA-Z0-9]/g, "_");
-        const li = document.createElement("li"); li.className = "student-item unmarked"; li.id = id;
-        li.innerHTML = `<div class="student-info"><div class="student-name">${n}</div><div class="student-id">${r}</div></div><div class="status-controls"><button class="status-button btn-present" data-key="${s}" style="opacity:0.4;">P</button><button class="status-button btn-absent" data-key="${s}" style="opacity:0.4;">A</button><button class="status-button btn-unmarked" data-key="${s}" style="opacity:1.0;">?</button></div>`;
+        const li = document.createElement("li"); 
+        li.className = "student-item unmarked"; 
+        li.id = id;
+        
+        li.innerHTML = `
+            <div class="student-info"><div class="student-name">${n}</div><div class="student-id">${r}</div></div>
+            <div class="status-controls">
+                <button class="status-button btn-present" data-key="${s}" style="opacity:0.4;">P</button>
+                <button class="status-button btn-absent" data-key="${s}" style="opacity:0.4;">A</button>
+                <button class="status-button btn-unmarked" data-key="${s}" style="opacity:1.0;">?</button>
+            </div>`;
+            
         list.appendChild(li);
+        
         li.querySelectorAll("button").forEach(b => b.addEventListener("click", e => {
             const k = e.target.getAttribute("data-key"); 
             const isUnmark = e.target.classList.contains("btn-unmarked");
             const isPresent = e.target.classList.contains("btn-present");
+            
             li.querySelectorAll("button").forEach(btn=>btn.style.opacity=0.4); 
             e.target.style.opacity=1;
+            
             if(isUnmark) { delete attendanceState[k]; li.className = "student-item unmarked"; } 
-            else { attendanceState[k] = isPresent ? "PRESENT" : "ABSENT"; li.className = `student-item ${isPresent ? 'present' : 'absent'}`; }
+            else { 
+                attendanceState[k] = isPresent ? "PRESENT" : "ABSENT"; 
+                li.className = `student-item ${isPresent ? 'present' : 'absent'}`; 
+            }
             updateSummary();
         }));
     });
 }
+
 function updateSummary() {
-    let p = 0, a = 0; for(let k in attendanceState) { if(attendanceState[k]==="PRESENT") p++; else if(attendanceState[k]==="ABSENT") a++; }
-    document.getElementById("total-present").textContent=p; document.getElementById("total-absent").textContent=a;
+    let p = 0, a = 0; 
+    for(let k in attendanceState) { if(attendanceState[k]==="PRESENT") p++; else if(attendanceState[k]==="ABSENT") a++; }
+    document.getElementById("total-present").textContent=p; 
+    document.getElementById("total-absent").textContent=a;
     const total = p + a;
     document.getElementById("present-percentage").textContent = total > 0 ? ((p/total)*100).toFixed(1) + "%" : "0.0%";
 }
-// --- NEW CODE (Supabase Write) ---
-// --- NEW CODE (Supabase Write) ---
+
 async function saveData() {
-    // 1. Security Check (Unchanged)
     if(!isAdminUnlocked) {
-        securityMessage.textContent = "Admin PIN required to SAVE Attendance Log.";
+        securityMessage.textContent = "Admin PIN required to SAVE Log.";
         securityOverlay.style.display = 'flex';
-        securityPinInput.value = ''; 
-        securityPinInput.focus();
+        securityPinInput.value = ''; securityPinInput.focus();
         pendingAction = () => { saveData(); }; 
         return;
     }
 
-    // 2. Validation (Unchanged)
     const dateVal = document.getElementById("attendance-date").value;
     const topicVal = document.getElementById("attendance-subject").value;
-
     if(!dateVal) return alert("Select Date.");
-    if(Object.keys(attendanceState).length === 0) {
-        if(!confirm("No students marked Present or Absent. Save empty log?")) return;
-    }
-    
-    // 3. Prepare the Data Object (Same structure as before)
+    if(Object.keys(attendanceState).length === 0 && !confirm("Save empty log?")) return;
+
     const attendanceArray = Object.keys(attendanceState).map(k => ({
         name: k.split(": ")[1], 
         group: k.split(": ")[0], 
@@ -732,48 +574,81 @@ async function saveData() {
     }));
 
     operateGate(async () => {
-        // 4. Send to Supabase
         const { error } = await supabaseClient
             .from('attendance_logs')
-            .insert([
-                { 
-                    date: dateVal, 
-                    topic: topicVal, 
-                    attendance_data: attendanceArray // Storing the full array as JSON
-                }
-            ]);
-
-        if (error) {
-            console.error("Supabase Error:", error);
-            alert("Failed to save attendance: " + error.message);
-            return;
-        }
-
-        // 5. Success
-        showSuccessAnimation();
-        // Note: The History tab will NOT update yet (we fix this in Step 5)
+            .insert([{ date: dateVal, topic: topicVal, attendance_data: attendanceArray }]);
+        
+        if (error) alert("Failed: " + error.message);
+        else showSuccessAnimation();
     });
 }
-function handleTopicChange() { const s = document.getElementById("attendance-subject"); document.getElementById("custom-topic-input").style.display = s.value === "Other" ? "block" : "none"; document.getElementById("current-subject-display").textContent = s.value === "Other" && document.getElementById("custom-topic-input").value ? document.getElementById("custom-topic-input").value : s.options[s.selectedIndex].textContent; }
 
-// --- ANALYTICS ---
+function handleTopicChange() { 
+    const s = document.getElementById("attendance-subject"); 
+    const custom = document.getElementById("custom-topic-input");
+    custom.style.display = s.value === "Other" ? "block" : "none"; 
+    document.getElementById("current-subject-display").textContent = s.value === "Other" ? (custom.value || "Custom") : s.options[s.selectedIndex].textContent; 
+}
+
+// --- HISTORY & ANALYTICS ---
+
+async function renderHistory() {
+    const list = document.getElementById("history-list");
+    list.innerHTML = '<li style="padding:20px; text-align:center;">Loading records...</li>';
+    
+    const { data: logs, error } = await supabaseClient.from('attendance_logs').select('*').order('created_at', { ascending: false });
+    
+    if (error) { list.innerHTML = '<li style="color:red;">Error loading history.</li>'; return; }
+    cachedAttendanceLogs = logs || [];
+
+    list.innerHTML = "";
+    if (!logs.length) { list.innerHTML = '<li style="padding:20px; opacity:0.6;">No attendance records found.</li>'; return; }
+    
+    logs.forEach(log => {
+        const att = log.attendance_data || [];
+        const present = att.filter(s => s.status === "PRESENT").length;
+        const total = att.length;
+        
+        const li = document.createElement("li"); 
+        li.className = "history-item";
+        li.innerHTML = `
+            <div class="history-header-wrapper">
+                <div style="display:flex; align-items:center;">
+                    <input type="checkbox" class="history-checkbox" value="${log.id}">
+                    <div class="history-info" onclick="document.getElementById('hist-${log.id}').style.display = document.getElementById('hist-${log.id}').style.display==='block'?'none':'block'">
+                        <span class="history-title">${log.topic}</span>
+                        <span class="history-date">${log.date}</span>
+                        <span class="history-meta">${present}/${total} Present</span>
+                    </div>
+                </div>
+            </div>
+            <div id="hist-${log.id}" class="history-details">
+                ${att.map(s => `<div style="font-size:11px; color:${s.status==='PRESENT'?'var(--color-success)':'var(--color-danger)'}">${s.name}</div>`).join('')}
+            </div>`;
+        list.appendChild(li);
+    });
+}
+
+document.getElementById('clear-history-btn').addEventListener('click', async () => {
+    if(!isAdminUnlocked) return alert("Security Restriction.");
+    if(confirm("DELETE ALL LOGS?")) {
+        const { error } = await supabaseClient.from('attendance_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        if(!error) renderHistory();
+    }
+});
+
 function calculatePersonalReport() {
-    // --- FIX: Use global cache instead of LocalStorage ---
-    const logs = cachedAttendanceLogs; 
-    
+    const logs = cachedAttendanceLogs;
     const stats = {};
-    h4_students.forEach(s => { const [yearGroup, namePart] = s.split(": "); const name = namePart; stats[name] = { year: yearGroup, present: 0, total: 0 }; });
+    h4_students.forEach(s => { const [yearGroup, namePart] = s.split(": "); stats[namePart] = { year: yearGroup, present: 0, total: 0 }; });
     
-    if (logs && Array.isArray(logs)) {
+    if (logs) {
         logs.forEach(log => { 
-            // --- FIX: Use correct DB column 'attendance_data' ---
             if(log.attendance_data) { 
                 log.attendance_data.forEach(entry => { 
-                    let key = Object.keys(stats).find(k => k.includes(entry.name)); 
-                    if(!key) { 
-                        key = entry.name; 
-                        if(!stats[key]) stats[key] = { year: "Unknown", present: 0, total: 0 }; 
-                    } 
+                    // Fuzzy match key
+                    let key = Object.keys(stats).find(k => k.includes(entry.name));
+                    if(!key) { key = entry.name; if(!stats[key]) stats[key] = { year: "Unknown", present: 0, total: 0 }; }
                     stats[key].total++; 
                     if(entry.status === "PRESENT") stats[key].present++; 
                 }); 
@@ -781,274 +656,30 @@ function calculatePersonalReport() {
         });
     }
     
+    // Render tables 1-4
     [1, 2, 3, 4].forEach(y => {
-        const tbody = document.getElementById(`analytics-body-${y}`); if (!tbody) return; tbody.innerHTML = "";
+        const tbody = document.getElementById(`analytics-body-${y}`); 
+        if (!tbody) return; 
+        tbody.innerHTML = "";
+        
         const yearKey = `${y}${y===1?'st':(y===2?'nd':(y===3?'rd':'th'))} Year`;
-        const yearStudents = Object.entries(stats).filter(([k, v]) => v.year === yearKey);
-        if(yearStudents.length === 0) { tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; opacity:0.5;">No data available.</td></tr>`; } else {
-            yearStudents.sort((a,b) => { const pa = a[1].total ? (a[1].present/a[1].total) : 0; const pb = b[1].total ? (b[1].present/b[1].total) : 0; return pb - pa; });
-            yearStudents.forEach(([name, data]) => {
+        const students = Object.entries(stats).filter(([k, v]) => v.year === yearKey);
+        
+        if(!students.length) { tbody.innerHTML = `<tr><td colspan="3">No data.</td></tr>`; } 
+        else {
+            students.sort((a,b) => (b[1].present/b[1].total || 0) - (a[1].present/a[1].total || 0));
+            students.forEach(([name, data]) => {
                 const pct = data.total === 0 ? 0 : Math.round((data.present / data.total) * 100);
-                let color = '#e74c3c'; if(pct >= 75) color = '#2ecc71'; else if(pct >= 50) color = '#f1c40f';
-                let unit = "General"; if(name.includes("(Software)")) unit = "Software"; else if(name.includes("(Robotics)")) unit = "Robotics"; else if(name.includes("(Core)")) unit = "Core";
-                tbody.innerHTML += `<tr><td>${name.split(" [")[0]}</td><td><span class="tech-badge">${unit.toUpperCase()}</span></td><td><div style="display:flex; align-items:center;"><span style="width:35px; font-weight:bold; color:${color};">${pct}%</span><div class="analytics-progress-wrapper"><div class="analytics-progress-fill" style="width:${pct}%; background:${color};"></div></div></div></td></tr>`;
+                let color = pct >= 75 ? '#2ecc71' : (pct >= 50 ? '#f1c40f' : '#e74c3c');
+                tbody.innerHTML += `<tr><td>${name.split(" [")[0]}</td><td>General</td><td><div style="display:flex; align-items:center;"><span style="width:35px; color:${color};">${pct}%</span><div class="analytics-progress-wrapper"><div class="analytics-progress-fill" style="width:${pct}%; background:${color};"></div></div></div></td></tr>`;
             });
         }
     });
 }
 
-// --- EQUIPMENT (SUPABASE) ---
-async function renderEquipmentLogs() {
-    const tbody = document.getElementById("equipment-log-body");
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; opacity:0.6;">Loading...</td></tr>';
 
-    // Fetch ONLY active (not returned) items to match old UI behavior
-    const { data: logs, error } = await supabaseClient
-        .from('equipment_logs')
-        .select('*')
-        .eq('is_returned', false)
-        .order('issue_date', { ascending: false });
+// --- SOCIAL FEED (FIXED) ---
 
-    if (error) {
-        console.error("Equipment load error:", error);
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--color-danger);">Error loading logs.</td></tr>';
-        return;
-    }
-
-    tbody.innerHTML = "";
-    if (logs.length === 0) { 
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; opacity:0.5;">No hardware issued.</td></tr>'; 
-        return; 
-    }
-
-    logs.forEach(item => {
-        // Note: Passing UUID string to function
-        const row = `
-        <tr>
-            <td style="color:var(--color-accent); font-weight:bold;">${item.equipment_name}</td>
-            <td>${item.issued_to}<br><span style="font-size:10px; color:#888;">${item.project_group || 'N/A'}</span></td>
-            <td>Issued: ${item.issue_date}<br><span style="font-size:10px; color:#e74c3c;">Return: ${item.return_date}</span></td>
-            <td><span class="tech-badge" style="background: rgba(231, 76, 60, 0.1); color: var(--color-danger);">ISSUED</span></td>
-            <td style="display:flex; gap:5px;">
-                <button class="btn-utility btn-equipment-return" onclick="returnEquipment('${item.id}')">RETURN</button>
-                <button class="btn-utility" title="Send Reminder Email" style="padding:5px 10px; font-size:16px; border-color:var(--color-tinker); color:var(--color-tinker);" onclick="sendEqReminder('${item.equipment_name.replace(/'/g, "\\'")}', '${item.return_date}')">🔔</button>
-            </td>
-        </tr>`;
-        tbody.innerHTML += row;
-    });
-}
-
-window.sendEqReminder = (name, date) => { 
-    window.location.href = `mailto:?subject=${encodeURIComponent("Equipment Return: " + name)}&body=${encodeURIComponent("Please return by " + date)}`; 
-};
-
-document.getElementById("add-equipment-btn").addEventListener("click", () => {
-    const name = document.getElementById("eq-name").value;
-    const to = document.getElementById("eq-member-select").value;
-    const idate = document.getElementById("eq-issue-date").value;
-    const rdate = document.getElementById("eq-return-date").value;
-    const grp = document.getElementById("eq-group").value;
-
-    if(!name || !to || !idate || !rdate) return alert("All fields are required.");
-
-    operateGate(async () => {
-        const { error } = await supabaseClient
-            .from('equipment_logs')
-            .insert([{ 
-                equipment_name: name, 
-                issued_to: to, 
-                project_group: grp, 
-                issue_date: idate, 
-                return_date: rdate,
-                is_returned: false // --- FIX: Explicitly set default to prevent disappearing items ---
-            }]);
-
-        if (error) {
-            alert("Error issuing equipment: " + error.message);
-        } else {
-            // Clear inputs
-            document.getElementById("eq-name").value = "";
-            document.getElementById("eq-group").value = "";
-            showSuccessAnimation();
-            renderEquipmentLogs();
-        }
-    });
-});
-
-window.returnEquipment = async (id) => {
-    if(!isAdminUnlocked) { 
-        securityMessage.textContent = "Admin PIN required to Mark as Returned."; 
-        securityOverlay.style.display = 'flex'; 
-        securityPinInput.value = ''; securityPinInput.focus(); 
-        pendingAction = () => { window.returnEquipment(id); }; 
-        return; 
-    }
-
-    if(!confirm("Mark this item as returned?")) return;
-
-    // Update DB: set is_returned = true
-    const { error } = await supabaseClient
-        .from('equipment_logs')
-        .update({ is_returned: true })
-        .eq('id', id);
-
-    if (error) {
-        alert("Error updating status: " + error.message);
-    } else {
-        showSuccessAnimation();
-        renderEquipmentLogs();
-    }
-};
-
-// --- PROJECTS (SUPABASE) ---
-// Note: We don't need loadProjects() helper anymore, we fetch directly in render
-async function renderProjects() {
-    const list = document.getElementById("live-projects-list");
-    list.innerHTML = '<p style="opacity:0.6;">Loading projects...</p>';
-
-    const { data: projects, error } = await supabaseClient
-        .from('projects')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-    list.innerHTML = "";
-    
-    if (error) {
-        console.error(error);
-        list.innerHTML = '<p style="color:var(--color-danger)">Error loading projects.</p>';
-        return;
-    }
-
-    if (!projects || projects.length === 0) { 
-        list.innerHTML = '<p style="opacity:0.6;">Empty.</p>'; 
-        return; 
-    }
-
-    projects.forEach(x => {
-        // Map DB columns to UI
-        list.innerHTML += `
-        <div class="project-card">
-            <h4>${x.title}</h4>
-            <p class="project-info">${x.description || ''}</p>
-            <span class="project-tech-tag">${x.status}</span>
-            ${x.tech_stack ? `<span class="project-tech-tag" style="border-color:#fff; color:#fff;">${x.tech_stack}</span>` : ''}
-            <button class="btn-delete-project" onclick="deleteProject('${x.id}')">DEL</button>
-            <div class="project-actions">
-                ${x.resources_link ? `<a href="${x.resources_link}" target="_blank" class="project-btn-link">View Resources</a>` : ''}
-            </div>
-        </div>`;
-    });
-}
-
-window.deleteProject = async (id) => { 
-    if(!confirm("Delete Project?")) return;
-    
-    const { error } = await supabaseClient
-        .from('projects')
-        .delete()
-        .eq('id', id);
-
-    if (error) {
-        alert("Delete failed: " + error.message);
-    } else {
-        renderProjects(); 
-    }
-};
-
-document.getElementById("add-project-btn").addEventListener("click", () => {
-    // Gather all inputs
-    const title = document.getElementById("project-name").value; 
-    const status = document.getElementById("project-type").value;
-    const desc = document.getElementById("project-purpose").value;
-    const tech = document.getElementById("project-tech").value;
-    const links = document.getElementById("project-links").value;
-    const start = document.getElementById("project-start").value;
-    const end = document.getElementById("project-end").value;
-    
-    // Get Multi-Select Members (Values)
-    const memberSelect = document.getElementById("project-members-select");
-    const members = Array.from(memberSelect.selectedOptions).map(o => o.value).join(", ");
-
-    if(!title || !start) return alert("Title and Start Date required.");
-    if(!links) return alert("Resources Link is MANDATORY.");
-
-    operateGate(async () => {
-        const { error } = await supabaseClient
-            .from('projects')
-            .insert([{ 
-                title: title,
-                status: status,
-                description: desc,
-                tech_stack: tech,
-                resources_link: links,
-                start_date: start,
-                end_date: end || null, // Handle empty date safely
-                team_members: members
-            }]);
-
-        if (error) {
-            alert("Error adding project: " + error.message);
-        } else {
-            showSuccessAnimation(); 
-            renderProjects();
-            
-            // Clear minimal inputs
-            document.getElementById("project-name").value = "";
-            document.getElementById("project-purpose").value = "";
-        }
-    });
-});
-// --- CHAT (SUPABASE) ---
-async function loadChat() { 
-    const d = document.getElementById("chat-display"); 
-    // d.innerHTML = '<div style="text-align:center; opacity:0.5; padding:20px;">Loading encrypted channel...</div>';
-
-    const { data: messages, error } = await supabaseClient
-        .from('chat_messages')
-        .select('*')
-        .order('created_at', { ascending: true }); // Oldest first
-
-    if(error) {
-        console.error("Chat Error:", error);
-        return;
-    }
-
-    // Map DB 'message' column to UI 'text' expectation
-    d.innerHTML = messages.map(m => 
-        `<div class="chat-message ${m.sender==='ME'?'msg-self':'msg-other'}"><span class="msg-meta">${m.sender}</span>${m.message}</div>`
-    ).join(""); 
-}
-
-function scrollChat() { 
-    const d = document.getElementById("chat-display"); 
-    d.scrollTop = d.scrollHeight; 
-}
-
-async function postMessage() {
-    const input = document.getElementById("chat-input");
-    const val = input.value; 
-    if(!val) return;
-    
-    const sender = document.getElementById("chat-sender-select").value || "ME";
-
-    // Optimistic UI update (shows immediately)
-    const d = document.getElementById("chat-display");
-    d.innerHTML += `<div class="chat-message ${sender==='ME'?'msg-self':'msg-other'}"><span class="msg-meta">${sender}</span>${val}</div>`;
-    scrollChat();
-    input.value = "";
-
-    // Send to DB
-    const { error } = await supabaseClient
-        .from('chat_messages')
-        .insert([{ sender: sender, message: val }]);
-
-    if(error) console.error("Message failed:", error);
-    // No need to reload chat immediately as we did optimistic update
-}
-document.getElementById("chat-send-btn").addEventListener("click", postMessage);
-
-
-// --- SOCIAL FEED (SUPABASE) ---
 function toggleImgInput() {
     const type = document.getElementById('social-img-type').value;
     document.getElementById('social-url-wrapper').style.display = type === 'url' ? 'block' : 'none';
@@ -1061,48 +692,28 @@ async function publishPost() {
     const imgType = document.getElementById('social-img-type').value;
     const link = document.getElementById('social-link').value.trim();
     
-    if(!author || !text) return alert("Please include an Author and Caption.");
+    if(!author || !text) return alert("Author and Caption required.");
 
-    // Helper to send data
     const sendToDb = async (imgData) => {
-        const cleanAuthor = author.split(":")[1] || author;
-        
+        const cleanAuthor = author.includes(":") ? author.split(": ")[1].split(" (")[0] : author;
         const { error } = await supabaseClient
             .from('social_posts')
-            .insert([{ 
-                author: cleanAuthor, 
-                content: text, 
-                image_data: imgData, 
-                external_link: link,
-                comments_data: [] // Init empty array
-            }]);
+            .insert([{ author: cleanAuthor, content: text, image_data: imgData, external_link: link, comments_data: [] }]);
 
-        if (error) {
-            alert("Post failed: " + error.message);
-        } else {
-            // Notification
-            addNotification(`New Social Post by ${cleanAuthor}`, "social");
-            
-            // Cleanup
+        if (error) alert("Post failed: " + error.message);
+        else {
             document.getElementById('social-text').value = ""; 
-            document.getElementById('social-img-url').value = ""; 
-            document.getElementById('social-img-file').value = ""; 
-            document.getElementById('social-link').value = "";
-            
-            showSuccessAnimation(); 
-            renderFeed();
+            showSuccessAnimation(); renderFeed();
         }
     };
 
     if (imgType === 'file') {
         const fileInput = document.getElementById('social-img-file');
-        if (fileInput.files && fileInput.files[0]) {
-            const file = fileInput.files[0]; 
-            if(file.size > 500000) return alert("File too large! Max 500KB.");
+        if (fileInput.files[0]) {
             const reader = new FileReader(); 
             reader.onload = (e) => sendToDb(e.target.result); 
-            reader.readAsDataURL(file);
-        } else { sendToDb(null); }
+            reader.readAsDataURL(fileInput.files[0]);
+        } else sendToDb(null);
     } else { 
         sendToDb(document.getElementById('social-img-url').value.trim() || null); 
     }
@@ -1110,300 +721,249 @@ async function publishPost() {
 
 async function renderFeed() {
     const stream = document.getElementById('feed-stream'); 
-    stream.innerHTML = '<div style="text-align:center; padding:20px; opacity:0.6;">Refreshing feed...</div>';
+    const { data: posts, error } = await supabaseClient.from('social_posts').select('*').order('created_at', { ascending: false });
 
-    const { data: posts, error } = await supabaseClient
-        .from('social_posts')
-        .select('*')
-        .order('created_at', { ascending: false }); // Newest first
-
-    if(error) {
-        stream.innerHTML = '<div style="text-align:center; color:red;">Error loading feed.</div>';
-        return;
-    }
-
-    // Sort: Pinned first (client side sort)
-    posts.sort((a,b) => (b.is_pinned === a.is_pinned) ? 0 : b.is_pinned ? 1 : -1);
-
+    if(error || !posts) { stream.innerHTML = 'Error loading feed.'; return; }
     stream.innerHTML = "";
-    if(posts.length === 0) { 
-        stream.innerHTML = `<div style="text-align:center; opacity:0.5; padding:40px;">No posts yet.</div>`; 
-        return; 
-    }
 
     posts.forEach(post => {
-        // Map DB columns to UI variables
         const id = post.id;
-        const author = post.author;
-        const text = post.content;
-        const image = post.image_data;
-        const link = post.external_link;
-        const likes = post.likes || 0;
-        const comments = post.comments_data || [];
-        const pinned = post.is_pinned;
-        const date = new Date(post.created_at).toLocaleString(); 
-        const initial = author.charAt(0).toUpperCase();
+        // Fix Image Rendering: check if url or base64 exists
+        let imgHtml = '';
+        if (post.image_data) {
+            // Error handler ensures broken links don't show ugly icon
+            imgHtml = `<div class="feed-media-wrapper"><img src="${post.image_data}" class="feed-media" alt="Post Image" onerror="this.style.display='none'"></div>`;
+        }
 
-        let commentsHtml = ""; 
-        comments.forEach(c => { 
-            commentsHtml += `<li class="comment-item"><strong>${c.user}</strong>: ${c.text}</li>`; 
-        });
+        const dateStr = formatDateTime(post.created_at);
+        const comments = post.comments_data || [];
+        const initial = post.author.charAt(0).toUpperCase();
 
         stream.innerHTML += `
-        <div class="feed-card" id="post-${id}">
-            ${pinned ? `<div class="feed-pin-icon" title="Pinned Post">📌</div>` : ''}
+        <div class="feed-card">
             <div class="feed-admin-controls">
-                <button class="btn-feed-admin btn-feed-pin" onclick="togglePin('${id}', ${pinned})">${pinned ? 'Unpin' : 'Pin'}</button>
                 <button class="btn-feed-admin" onclick="deletePost('${id}')">✖</button>
             </div>
             <div class="feed-header">
                 <div class="feed-avatar">${initial}</div>
-                <div class="feed-meta"><h5>${author}</h5><span>${date}</span></div>
+                <div class="feed-meta"><h5>${post.author}</h5><span>${dateStr}</span></div>
             </div>
-            <div class="feed-content">${text}</div>
+            <div class="feed-content">${post.content}</div>
+            ${imgHtml}
+            ${post.external_link ? `<div class="feed-link-wrapper"><a href="${post.external_link}" target="_blank" class="feed-link-preview">🔗 Link</a></div>` : ''}
             
-            ${image ? `<div class="feed-media-wrapper"><img src="${image}" class="feed-media" alt="Post Image"></div>` : ''}
-            ${link ? `<div class="feed-link-wrapper"><a href="${link}" target="_blank" class="feed-link-preview">🔗 ${link}</a></div>` : ''}
-
             <div class="feed-actions">
-                <button class="action-btn" onclick="likePost('${id}', ${likes})">❤ ${likes} Likes</button>
-                <button class="action-btn" onclick="document.getElementById('comments-${id}').classList.toggle('active')">💬 ${comments.length} Comments</button>
+                <button class="action-btn" onclick="likePost('${id}', ${post.likes||0})">❤ ${post.likes||0}</button>
+                <button class="action-btn" onclick="document.getElementById('c-${id}').classList.toggle('active')">💬 ${comments.length}</button>
             </div>
-            <div class="comment-section" id="comments-${id}">
-                <ul class="comment-list">${commentsHtml}</ul>
+            <div class="comment-section" id="c-${id}">
+                <ul class="comment-list">${comments.map(c=>`<li class="comment-item"><strong>${c.user}</strong>: ${c.text}</li>`).join('')}</ul>
                 <div class="comment-input-wrapper">
-                    <input type="text" placeholder="Add a comment..." id="input-comment-${id}">
-                    <button class="btn-utility" style="padding:5px 10px; font-size:10px;" onclick="addComment('${id}')">POST</button>
+                    <input type="text" id="in-${id}" placeholder="Comment...">
+                    <button class="btn-utility" style="padding:5px;" onclick="addComment('${id}')">POST</button>
                 </div>
             </div>
         </div>`;
     });
 }
 
-window.likePost = async function(id, currentLikes) { 
-    // Optimistic update handled by re-render usually, but here simply update DB then reload
-    const { error } = await supabaseClient
-        .from('social_posts')
-        .update({ likes: currentLikes + 1 })
-        .eq('id', id);
-        
-    if(!error) renderFeed(); 
+window.likePost = async (id, current) => { 
+    await supabaseClient.from('social_posts').update({ likes: current + 1 }).eq('id', id); renderFeed(); 
 };
-
-window.addComment = async function(id) {
-    const input = document.getElementById(`input-comment-${id}`); 
-    const text = input.value.trim(); 
-    if(!text) return;
-
-    // 1. Fetch current comments first to append safely
-    const { data: post, error: fetchError } = await supabaseClient
-        .from('social_posts')
-        .select('comments_data')
-        .eq('id', id)
-        .single();
-
-    if(fetchError) return alert("Error fetching post details.");
-
-    const currentComments = post.comments_data || [];
-    currentComments.push({ user: "Member", text: text }); // Generic user for now
-
-    // 2. Update DB
-    const { error: updateError } = await supabaseClient
-        .from('social_posts')
-        .update({ comments_data: currentComments })
-        .eq('id', id);
-
-    if(!updateError) renderFeed();
+window.addComment = async (id) => {
+    const txt = document.getElementById(`in-${id}`).value; if(!txt) return;
+    const { data } = await supabaseClient.from('social_posts').select('comments_data').eq('id', id).single();
+    const arr = data.comments_data || []; arr.push({ user: 'Member', text: txt });
+    await supabaseClient.from('social_posts').update({ comments_data: arr }).eq('id', id); renderFeed();
 };
-
-window.togglePin = async function(id, currentStatus) { 
-    if(!isAdminUnlocked) { 
-        securityMessage.textContent = "Admin PIN required."; 
-        securityOverlay.style.display = 'flex'; 
-        securityPinInput.value=''; securityPinInput.focus(); 
-        // No pendingAction callback here to keep it simple, just deny
-        return; 
-    } 
-    
-    const { error } = await supabaseClient
-        .from('social_posts')
-        .update({ is_pinned: !currentStatus })
-        .eq('id', id);
-
-    if(!error) renderFeed(); 
-};
-
-window.deletePost = async function(id) { 
-    if(!isAdminUnlocked) { 
-        securityMessage.textContent = "Admin PIN required."; 
-        securityOverlay.style.display = 'flex'; 
-        securityPinInput.value=''; securityPinInput.focus(); 
-        return; 
-    } 
-    
-    if(!confirm("Delete this post?")) return; 
-    
-    const { error } = await supabaseClient
-        .from('social_posts')
-        .delete()
-        .eq('id', id);
-
-    if(!error) renderFeed(); 
+window.deletePost = async (id) => {
+    if(!isAdminUnlocked) return alert("Admin Only.");
+    if(confirm("Delete post?")) { await supabaseClient.from('social_posts').delete().eq('id', id); renderFeed(); }
 };
 
 document.getElementById('social-post-btn').addEventListener('click', publishPost);
-// --- TEAMS (READ-ONLY) ---
-function renderTeams() {
-    const grid = document.getElementById("team-display-grid"); const domainSelect = document.getElementById("team-domain-select"); const selectedDomain = domainSelect.value || "Software";
+
+
+// --- DIRECTORY & TEAMS (NO HEADS) ---
+
+function renderMemberDirectory() {
+    const grid = document.getElementById("member-directory-grid");
+    const term = document.getElementById("directory-search").value.toLowerCase();
     grid.innerHTML = "";
-    const teamMembers = h4_students.filter(s => selectedDomain === "ALL" || s.toLowerCase().includes(selectedDomain.toLowerCase()));
-    if(teamMembers.length === 0) { grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #666;">No members found in ${selectedDomain} domain.</div>`; return; }
-    teamMembers.sort((a, b) => {
-        const nameA = a.split(": ")[1].split(" [")[0]; const nameB = b.split(": ")[1].split(" [")[0];
-        const isHeadA = domainHeads[selectedDomain] === nameA; const isHeadB = domainHeads[selectedDomain] === nameB;
-        if (isHeadA) return -1; if (isHeadB) return 1; return nameA.localeCompare(nameB);
-    });
-    teamMembers.forEach(memberStr => {
-        const parts = memberStr.split(": "); const year = parts[0]; const rest = parts[1];
-        const name = rest.split(" (")[0].trim(); const enrollment = rest.match(/\[(.*?)\]/)[1];
-        const isHead = domainHeads[selectedDomain] === name;
-        const photoUrl = memberPhotos[name] || "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
-        const mockEmail = `${name.split(' ')[0].toLowerCase()}.${enrollment}@jiit.ac.in`;
-        grid.innerHTML += `<div class="team-card ${isHead ? 'is-head' : ''}">${isHead ? `<div class="head-badge">👑 ${selectedDomain} HEAD</div>` : ''}<a href="mailto:${mockEmail}" class="mail-corner-link" title="Send Email">✉</a><div class="team-img-wrapper" onclick="updateMemberPhoto('${name.replace(/'/g, "\\'")}')"><img src="${photoUrl}" class="team-img" alt="${name}"><div class="img-upload-overlay">📷</div></div><h3 class="team-name">${name}</h3><div class="team-role">${year} • ${enrollment}</div><div class="team-details-box"><div class="team-detail-item"><strong>BATCH</strong><span>2021-25</span></div><div class="team-detail-item"><strong>STATUS</strong><span style="color:var(--color-success)">ACTIVE</span></div></div>${isAdminUnlocked ? `<div class="team-admin-actions" style="display:block"><button class="btn-make-head" onclick="toggleDomainHead('${selectedDomain}', '${name.replace(/'/g, "\\'")}')">${isHead ? 'REMOVE HEAD' : 'MAKE HEAD'}</button></div>` : ''}</div>`;
-    });
-}
-function populateTeamDropdown() {
-    const sel = document.getElementById("team-domain-select"); sel.innerHTML = "";
-    const domains = ALL_GROUPS.filter(g => !g.includes("Year"));
-    domains.forEach(d => { const opt = document.createElement("option"); opt.value = d; opt.textContent = d.toUpperCase(); sel.appendChild(opt); });
-    sel.onchange = renderTeams;
-}
-// UPDATED: Now writes to DB 'role' column
-window.toggleDomainHead = async (domain, name) => {
-    if(!isAdminUnlocked) return alert("Security Restriction: Unlock Admin Mode first.");
-    const newRole = (domainHeads[domain] === name) ? 'Member' : 'Head';
-    if(newRole === 'Head' && !confirm(`Promote ${name} to HEAD of ${domain}?`)) return;
     
-    // We update Supabase. The logic relies on Name match
-    const { error } = await supabaseClient
-        .from('members')
-        .update({ role: newRole })
-        .eq('name', name);
+    const filtered = h4_students.filter(s => s.toLowerCase().includes(term));
+    document.getElementById("member-count-badge").textContent = filtered.length;
+    
+    filtered.forEach(str => {
+        // Parse "Year: Name (Domain)"
+        const parts = str.split(": ");
+        const name = parts[1].split(" (")[0];
+        const domain = parts[1].match(/\((.*?)\)/)[1];
+        
+        const card = document.createElement("div");
+        card.className = "member-card";
+        const removeBtn = isAdminUnlocked ? `<button class="btn-revoke-access" onclick="removeMemberDirectly('${str.replace(/'/g, "\\'")}')">REMOVE USER</button>` : '';
 
-    if(error) { alert("Failed to update role: " + error.message); }
-    else { await fetchMembers(); showSuccessAnimation(); }
-};
-// UPDATED: Now writes to DB 'photo_url' column
+        card.innerHTML = `
+            <div class="member-card-photo">${name.charAt(0)}</div>
+            <div class="member-card-name">${name}</div>
+            <div class="member-card-detail" style="color:var(--color-accent);">${parts[0]}</div>
+            <div class="member-card-detail">${domain} Unit</div>
+            ${removeBtn}
+        `;
+        grid.appendChild(card);
+    });
+}
+document.getElementById("directory-search").addEventListener("input", renderMemberDirectory);
+
+function renderTeams() {
+    const grid = document.getElementById("team-display-grid");
+    const domainSelect = document.getElementById("team-domain-select");
+    const selectedDomain = domainSelect.value || "Software";
+    
+    grid.innerHTML = "";
+    const members = h4_students.filter(s => selectedDomain === "ALL" || s.toLowerCase().includes(selectedDomain.toLowerCase()));
+    
+    if(members.length === 0) { grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px;color:#666;">No members in ${selectedDomain}.</div>`; return; }
+
+    members.forEach(str => {
+        const parts = str.split(": ");
+        const name = parts[1].split(" (")[0];
+        const enrollment = parts[1].match(/\[(.*?)\]/)[1];
+        const img = memberPhotos[name] || "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
+
+        grid.innerHTML += `
+        <div class="team-card">
+            <a href="mailto:${name.split(' ')[0]}@example.com" class="mail-corner-link">✉</a>
+            <div class="team-img-wrapper" onclick="updateMemberPhoto('${name.replace(/'/g, "\\'")}')">
+                <img src="${img}" class="team-img" alt="${name}">
+                <div class="img-upload-overlay">📷</div>
+            </div>
+            <h3 class="team-name">${name}</h3>
+            <div class="team-role">${parts[0]}</div>
+            <div class="team-details-box">
+                <div class="team-detail-item"><strong>ID</strong><span>${enrollment}</span></div>
+            </div>
+        </div>`;
+    });
+}
 window.updateMemberPhoto = async (name) => {
-    if(!isAdminUnlocked) { securityMessage.textContent = "Admin PIN required."; securityOverlay.style.display = 'flex'; securityPinInput.value=''; securityPinInput.focus(); pendingAction = () => { window.updateMemberPhoto(name); }; return; }
-    
-    const url = prompt(`Enter Image URL for ${name}:`); 
-    if (url === null) return;
-    
-    const newVal = (url.trim() === "") ? null : url.trim();
-    
-    const { error } = await supabaseClient
-        .from('members')
-        .update({ photo_url: newVal })
-        .eq('name', name);
-
-    if(error) { alert("Failed to update photo: " + error.message); }
-    else { await fetchMembers(); }
+    if(!isAdminUnlocked) return alert("Admin Only.");
+    const url = prompt("Enter Image URL:");
+    if(url) {
+        await supabaseClient.from('members').update({ photo_url: url }).eq('name', name);
+        await fetchMembers();
+    }
 };
 
-// --- SCHEDULING ---
-document.getElementById("schedule-meeting-btn").addEventListener("click", () => {
-    const recipient = document.getElementById("recipient-email").value; const subject = document.getElementById("schedule-subject").value; const date = document.getElementById("schedule-date").value; const time = document.getElementById("schedule-time").value; const loc = document.getElementById("schedule-location-type").value; const det = document.getElementById("schedule-location-details").value;
-    const select = document.getElementById("schedule-recipient-select"); const selectedOptions = Array.from(select.selectedOptions).map(opt => opt.value);
-    if(!subject || !date) return alert("Subject and Date are required.");
-    let body = `Meeting Invitation\n\nSubject: ${subject}\nWhen: ${date} at ${time}\nWhere: ${loc} - ${det}\n\n`;
-    if (selectedOptions.length > 0) body += `Invited Members:\n${selectedOptions.join('\n')}\n\n`;
-    window.location.href = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-});
+document.getElementById("team-domain-select").addEventListener("change", renderTeams);
 
-// --- ADMIN ---
-// --- REPLACE EXISTING update-pin-btn LISTENER ---
-document.getElementById("update-pin-btn").addEventListener("click", async () => {
-    const currentInput = document.getElementById('current-security-pin-verify').value;
-    const newPin = document.getElementById('new-security-pin').value;
-    
-    if(currentInput !== GLOBAL_SECURITY_PIN) return alert("Incorrect PIN.");
-    if(newPin.length !== 4) return alert("New PIN must be 4 digits.");
-    
-    const { error } = await supabaseClient
-        .from('app_settings')
-        .update({ value: newPin })
-        .eq('key', 'security_pin');
-
-    if(error) {
-        alert("Update failed: " + error.message);
-    } else {
-        GLOBAL_SECURITY_PIN = newPin; // Update local immediately
-        alert("Security PIN Updated Globally.");
-        document.getElementById('current-security-pin-verify').value = '';
-        document.getElementById('new-security-pin').value = '';
+// --- EQUIPMENT & PROJECTS ---
+// (Simplified for brevity as they are standard CRUD)
+async function renderEquipmentLogs() {
+    const b = document.getElementById("equipment-log-body"); b.innerHTML = '<tr><td colspan="5">Loading...</td></tr>';
+    const { data } = await supabaseClient.from('equipment_logs').select('*').eq('is_returned', false);
+    b.innerHTML = "";
+    if(!data || !data.length) b.innerHTML = '<tr><td colspan="5" style="text-align:center;">No active issues.</td></tr>';
+    else data.forEach(x => {
+        b.innerHTML += `<tr><td>${x.equipment_name}</td><td>${x.issued_to}</td><td>${x.issue_date}</td><td>ACTIVE</td><td><button class="btn-utility btn-equipment-return" onclick="returnEquipment('${x.id}')">RETURN</button></td></tr>`;
+    });
+}
+document.getElementById("add-equipment-btn").addEventListener("click", async () => {
+    const name = document.getElementById("eq-name").value;
+    const to = document.getElementById("eq-member-select").value;
+    const idate = document.getElementById("eq-issue-date").value;
+    const rdate = document.getElementById("eq-return-date").value;
+    if(name && to && idate) {
+        await supabaseClient.from('equipment_logs').insert([{ equipment_name: name, issued_to: to, issue_date: idate, return_date: rdate, is_returned: false }]);
+        renderEquipmentLogs(); showSuccessAnimation();
     }
 });
+window.returnEquipment = async (id) => {
+    if(isAdminUnlocked && confirm("Returned?")) {
+        await supabaseClient.from('equipment_logs').update({ is_returned: true }).eq('id', id);
+        renderEquipmentLogs();
+    } else if (!isAdminUnlocked) alert("Admin PIN Required.");
+};
+
+async function renderProjects() {
+    const d = document.getElementById("live-projects-list"); d.innerHTML = "Loading...";
+    const { data } = await supabaseClient.from('projects').select('*');
+    d.innerHTML = "";
+    if(data) data.forEach(p => {
+        d.innerHTML += `<div class="project-card"><h4>${p.title}</h4><p class="project-info">${p.description}</p><a href="${p.resources_link}" target="_blank" class="project-btn-link">View</a><button class="btn-delete-project" onclick="deleteProject('${p.id}')">DEL</button></div>`;
+    });
+}
+document.getElementById("add-project-btn").addEventListener("click", async () => {
+    const title = document.getElementById("project-name").value;
+    const link = document.getElementById("project-links").value;
+    if(title && link) {
+        await supabaseClient.from('projects').insert([{ title, resources_link: link, status: 'live', start_date: new Date() }]);
+        renderProjects();
+    }
+});
+window.deleteProject = async (id) => { if(confirm("Delete?")) { await supabaseClient.from('projects').delete().eq('id', id); renderProjects(); }};
+
+
+// --- CHAT ---
+async function loadChat() {
+    const d = document.getElementById("chat-display");
+    const { data } = await supabaseClient.from('chat_messages').select('*').order('created_at', { ascending: true });
+    if(data) d.innerHTML = data.map(m => `<div class="chat-message ${m.sender==='ME'?'msg-self':'msg-other'}"><span class="msg-meta">${m.sender}</span>${m.message}</div>`).join("");
+}
+function scrollChat() { const d = document.getElementById("chat-display"); d.scrollTop = d.scrollHeight; }
+document.getElementById("chat-send-btn").addEventListener("click", async () => {
+    const txt = document.getElementById("chat-input").value;
+    const sender = document.getElementById("chat-sender-select").value;
+    if(txt) {
+        await supabaseClient.from('chat_messages').insert([{ sender, message: txt }]);
+        document.getElementById("chat-input").value = "";
+        loadChat(); setTimeout(scrollChat, 500);
+    }
+});
+
+// --- CLOCK & ADMIN PIN ---
 function updateClock() {
     const now = new Date();
-    // Fix: Show Day, Date, and Time
-    const options = { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
-    const dateString = now.toLocaleDateString('en-US', options); // e.g., "Mon, Dec 29, 04:55:00 PM"
-    
-    if (digitalClock) {
-        digitalClock.textContent = dateString.replace(/,/g, ''); 
-    }
+    digitalClock.textContent = now.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
-// Fix: Visually disable buttons instead of showing "Broken" alerts
-const adminIds = ["admin-add-year-btn", "admin-remove-year-btn", "admin-add-domain-btn", "admin-remove-domain-btn"];
-adminIds.forEach(id => {
-    const btn = document.getElementById(id);
-    if(btn) {
-        // Clone to remove old listeners
-        const newBtn = btn.cloneNode(true);
-        btn.parentNode.replaceChild(newBtn, btn);
-        
-        // Apply visual disabled state
-        newBtn.style.opacity = "0.5";
-        newBtn.style.cursor = "not-allowed";
-        newBtn.textContent += " (AUTO)";
-        newBtn.addEventListener("click", () => {
-            alert("System Message: This feature is now automated based on active member profiles. No manual action required.");
-        });
-    }
-});
-// --- INIT ---
 setInterval(updateClock, 1000); updateClock();
+
+document.getElementById("update-pin-btn").addEventListener("click", async () => {
+    const old = document.getElementById('current-security-pin-verify').value;
+    const newP = document.getElementById('new-security-pin').value;
+    if(old === GLOBAL_SECURITY_PIN && newP.length === 4) {
+        await supabaseClient.from('app_settings').update({ value: newP }).eq('key', 'security_pin');
+        GLOBAL_SECURITY_PIN = newP; alert("PIN Updated.");
+    } else alert("Invalid PIN.");
+});
+
+// --- INITIALIZATION ---
 splashScreen.addEventListener('click', () => { 
-    AUDIO.play('click'); splashScreen.style.opacity = '0'; 
+    AUDIO.play('click'); 
+    splashScreen.style.opacity = '0'; 
     setTimeout(() => { 
         splashScreen.style.display = 'none'; 
         operateGate(() => { 
             appContent.style.display = 'block'; 
             fetchMembers().then(() => {
-                const ySelect = document.getElementById("year-select"); if(ySelect.options.length > 0) ySelect.options[0].selected = true;
-                renderStudents();
-                fetchSettings(),
-        fetchNotifications()
+                fetchSettings();
+                fetchNotifications();
+                runSystemChecks();
             });
-            runSystemChecks(); renderNotifications();
             const savedTab = sessionStorage.getItem("cicr_active_tab"); 
             if(savedTab) switchTab(savedTab, false); else switchTab('attendance'); 
         }); 
     }, 500); 
     bgMusic.volume = 0.5; bgMusic.play().catch(()=>{});
 });
-let isMusicPlaying = true;
-musicToggle.addEventListener('click', () => { if(isMusicPlaying) { bgMusic.pause(); musicToggle.textContent = "🔇"; isMusicPlaying = false; } else { bgMusic.play(); musicToggle.textContent = "🔊"; isMusicPlaying = true; } });
+
 tabLinks.forEach(link => link.addEventListener('click', (e) => switchTab(e.target.getAttribute('data-tab'))));
 document.getElementById("year-select").addEventListener("change", renderStudents);
 document.getElementById("attendance-domain-filter").addEventListener("change", renderStudents);
 document.getElementById("save-data-btn").addEventListener("click", saveData);
 document.getElementById("add-member-btn").addEventListener("click", addMember);
 document.getElementById("remove-member-btn").addEventListener("click", removeMember);
-const calMap = { 'open-calendar-btn': 'attendance-date', 'open-calendar-scheduler-btn': 'schedule-date', 'open-calendar-start-btn': 'project-start', 'open-calendar-end-btn': 'project-end' };
-Object.keys(calMap).forEach(btnId => { document.getElementById(btnId).addEventListener('click', () => openDatePicker(calMap[btnId])); });
-document.getElementById('create-gmeet-btn').addEventListener('click', () => { window.open(`https://calendar.google.com/calendar/u/0/r/eventedit?text=${encodeURIComponent(document.getElementById("attendance-subject").value)}&details=${encodeURIComponent(document.getElementById("meeting-summary").value)}`, '_blank'); });
 
-// Initial render to prevent blank dropdowns before fetch
+// Initial Load
 refreshAllDropdowns();
