@@ -297,13 +297,26 @@ function populateAllMembersDatalist() {
 }
 
 function populateSchedulingDropdowns() { 
-    const sel = document.getElementById("schedule-recipient-select"); 
-    if(!sel) return; 
-    sel.innerHTML = ''; 
+    const selInit = document.getElementById("schedule-initiator-select"); 
+    const selRecip = document.getElementById("schedule-recipient-select"); 
+    
+    if(selInit) selInit.innerHTML = '<option value="" disabled selected>Select Sender...</option>';
+    if(selRecip) selRecip.innerHTML = ''; 
+
     h4_students.forEach(s => { 
         const n = s.includes(": ") ? s.split(": ")[1] : s; 
-        const rO = document.createElement("option"); rO.value = n; rO.textContent = n; 
-        sel.appendChild(rO); 
+        
+        // Populate Initiator
+        if(selInit) {
+            const optI = document.createElement("option"); optI.value = n; optI.textContent = n; 
+            selInit.appendChild(optI);
+        }
+        
+        // Populate Recipient
+        if(selRecip) {
+            const optR = document.createElement("option"); optR.value = n; optR.textContent = n; 
+            selRecip.appendChild(optR); 
+        }
     });
 }
 
@@ -924,9 +937,12 @@ document.getElementById("chat-send-btn").addEventListener("click", async () => {
 });
 
 // --- CLOCK & ADMIN PIN ---
+// [RESTORED] Correct Clock Format
 function updateClock() {
     const now = new Date();
-    digitalClock.textContent = now.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const timeString = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+    const dateString = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: '2-digit' });
+    digitalClock.textContent = `${dateString} | ${timeString}`;
 }
 setInterval(updateClock, 1000); updateClock();
 
@@ -937,6 +953,75 @@ document.getElementById("update-pin-btn").addEventListener("click", async () => 
         await supabaseClient.from('app_settings').update({ value: newP }).eq('key', 'security_pin');
         GLOBAL_SECURITY_PIN = newP; alert("PIN Updated.");
     } else alert("Invalid PIN.");
+});
+
+// --- GOOGLE MEET LOGIC (RESTORED) ---
+function getMeetingTopic() {
+    const s = document.getElementById("attendance-subject");
+    const custom = document.getElementById("custom-topic-input");
+    return s.value === "Other" && custom.value.trim() !== "" ? custom.value.trim() : s.options[s.selectedIndex].textContent;
+}
+
+document.getElementById("create-gmeet-btn")?.addEventListener("click", () => {
+    const topic = getMeetingTopic();
+    window.open(`https://calendar.google.com/calendar/r/eventedit?text=${encodeURIComponent(topic)}`, '_blank');
+});
+
+// --- CSV EXPORT LOGIC (RESTORED & ADAPTED) ---
+document.getElementById("export-excel-btn")?.addEventListener("click", () => {
+    if (!cachedAttendanceLogs || cachedAttendanceLogs.length === 0) { alert("No logs to export."); return; }
+
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Date,Topic,Name,Group,Status\n";
+
+    cachedAttendanceLogs.forEach(log => {
+        const date = log.date || "";
+        const topic = (log.topic || "").replace(/,/g, " ");
+        const att = log.attendance_data || [];
+
+        att.forEach(student => {
+             const row = `${date},${topic},${student.name},${student.group || ''},${student.status}`;
+             csvContent += row + "\n";
+        });
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `CICR_Log_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+});
+
+// --- SCHEDULER LOGIC (RESTORED) ---
+document.getElementById("schedule-meeting-btn")?.addEventListener("click", () => {
+    const recipientSelect = document.getElementById("schedule-recipient-select");
+    const selectedRecipients = Array.from(recipientSelect.selectedOptions).map(o => o.value).join(", ");
+    
+    const senderEmail = document.getElementById("sender-email").value.trim();
+    const recipientEmail = document.getElementById("recipient-email").value.trim();
+    const subject = document.getElementById("schedule-subject").value.trim();
+    const date = document.getElementById("schedule-date").value;
+    const time = document.getElementById("schedule-time").value;
+    const locType = document.getElementById("schedule-location-type").value;
+    const locDetails = document.getElementById("schedule-location-details").value.trim();
+
+    if (!recipientEmail || !subject || !date || !time) {
+        alert("Please fill in required fields.");
+        return;
+    }
+
+    const body = `Meeting Invitation\n\n` +
+                 `Topic: ${subject}\n` +
+                 `Date: ${date}\n` +
+                 `Time: ${time}\n` +
+                 `Location: ${locType} ${locDetails ? `(${locDetails})` : ''}\n\n` +
+                 `Attendees: ${selectedRecipients}\n\n` +
+                 `Regards,\nCICR Management`;
+
+    const mailtoLink = `mailto:${recipientEmail}?cc=${senderEmail}&subject=${encodeURIComponent("INVITE: " + subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailtoLink;
 });
 
 // --- INITIALIZATION ---
@@ -965,6 +1050,32 @@ document.getElementById("attendance-domain-filter").addEventListener("change", r
 document.getElementById("save-data-btn").addEventListener("click", saveData);
 document.getElementById("add-member-btn").addEventListener("click", addMember);
 document.getElementById("remove-member-btn").addEventListener("click", removeMember);
+
+// [FIX] RESTORED MISSING EVENT LISTENERS
+
+// 1. Music Toggle Logic
+if(musicToggle) {
+    musicToggle.addEventListener('click', () => {
+        if(bgMusic.paused) {
+            bgMusic.play();
+            musicToggle.textContent = "🔊";
+            musicToggle.style.opacity = "1";
+        } else {
+            bgMusic.pause();
+            musicToggle.textContent = "🔇";
+            musicToggle.style.opacity = "0.5";
+        }
+    });
+}
+
+// 2. Date Picker Logic (Connecting helper to buttons)
+document.getElementById("open-calendar-btn")?.addEventListener("click", () => openDatePicker("attendance-date"));
+document.getElementById("open-calendar-start-btn")?.addEventListener("click", () => openDatePicker("project-start"));
+document.getElementById("open-calendar-end-btn")?.addEventListener("click", () => openDatePicker("project-end"));
+document.getElementById("open-calendar-scheduler-btn")?.addEventListener("click", () => openDatePicker("schedule-date"));
+
+// 3. Placeholder for export directory
+document.getElementById("export-directory-btn")?.addEventListener("click", () => alert("Exporting directory... (Feature WIP)"));
 
 // Initial Load
 refreshAllDropdowns();
