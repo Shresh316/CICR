@@ -359,7 +359,12 @@
                             <div class="full-span"><label>Domain</label><select id="new-member-group"></select></div>
                             
                             <div class="full-span"><button id="add-member-btn" style="width:100%; background: var(--color-success); color: white;">ADD USER & SEND INVITE</button></div>
-                            <div class="full-span" style="margin-top:30px; border-top:1px solid #333; padding-top:20px;"><label>Remove User</label><input list="all-members-datalist" id="remove-member-select"></div>
+                            <div class="full-span" style="margin-top:30px; border-top:1px solid #333; padding-top:20px;">
+                                <label>Remove User</label>
+                                <select id="remove-member-select">
+                                    <option value="" disabled selected>Select User...</option>
+                                </select>
+                            </div>
                             <div class="full-span"><button id="remove-member-btn">Remove User</button></div>
                         </div>
 
