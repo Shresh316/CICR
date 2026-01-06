@@ -112,7 +112,7 @@ async function addMember() {
     const name = document.getElementById("new-member-name").value.trim(); 
     const email = document.getElementById("new-member-email").value.trim(); 
     const phone = document.getElementById("new-member-phone").value.trim();
-    const dob = document.getElementById("new-member-dob").value;
+    const dob = document.getElementById("new-member-dob").value; // Capture DOB
     const batch = document.getElementById("new-member-batch").value.trim();
     const enroll = document.getElementById("new-member-enrollment").value.trim();
     
@@ -131,7 +131,8 @@ async function addMember() {
         year = year.trim();
     }
 
-    if (!name || !email || !phone || !batch || !enroll || !domain || !year) return alert("All text fields are mandatory.");
+    // [FIX] Validates that DOB is present so notifications work
+    if (!name || !email || !phone || !dob || !batch || !enroll || !domain || !year) return alert("All text fields (including DOB) are mandatory.");
     if (!validateEmail(email)) return alert("Invalid Email Address format.");
 
     operateGate(async () => { 
@@ -153,6 +154,7 @@ async function addMember() {
         document.getElementById("new-member-name").value = "";
         document.getElementById("new-member-email").value = "";
         document.getElementById("new-member-enrollment").value = "";
+        document.getElementById("new-member-dob").value = "";
     });
 }
 
@@ -724,7 +726,13 @@ async function publishPost() {
     const author = document.getElementById('social-author').value.trim();
     const text = document.getElementById('social-text').value.trim();
     const imgType = document.getElementById('social-img-type').value;
-    const link = document.getElementById('social-link').value.trim();
+    
+    // [FIX] Capture and sanitize the link so it opens correctly
+    let rawLink = document.getElementById('social-link').value.trim();
+    let link = "";
+    if (rawLink) {
+        link = rawLink.startsWith('http') ? rawLink : `https://${rawLink}`;
+    }
     
     if(!author || !text) return alert("Author and Caption required.");
 
@@ -736,8 +744,14 @@ async function publishPost() {
 
         if (error) alert("Post failed: " + error.message);
         else {
+            // [FIX] Clear ALL fields after success
             document.getElementById('social-text').value = ""; 
-            showSuccessAnimation(); renderFeed();
+            document.getElementById('social-link').value = ""; 
+            document.getElementById('social-img-url').value = "";
+            document.getElementById('social-img-file').value = "";
+            
+            showSuccessAnimation(); 
+            renderFeed();
         }
     };
 
