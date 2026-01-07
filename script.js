@@ -229,7 +229,7 @@ function refreshAllDropdowns() {
     populateSchedulingDropdowns(); 
     populateProjectMembersDropdown(); 
     populateGroupSelects(); 
-    populateChatSenderSelect();
+    // Chat dropdown populated removed
 }
 
 function populateGroupSelects() {
@@ -332,18 +332,6 @@ function populateProjectMembersDropdown() {
     h4_students.forEach(s => { 
         const n = s.includes(": ") ? s.split(": ")[1] : s; 
         const opt = document.createElement("option"); opt.value = n; opt.textContent = n; 
-        sel.appendChild(opt); 
-    });
-}
-
-function populateChatSenderSelect() {
-    const sel = document.getElementById("chat-sender-select"); 
-    if(!sel) return; 
-    sel.innerHTML = '<option value="ME">ME (Anonymous)</option>';
-    h4_students.forEach(s => { 
-        const n = s.includes(": ") ? s.split(": ")[1] : s; 
-        const simpleName = n.split(" [")[0]; 
-        const opt = document.createElement("option"); opt.value = simpleName; opt.textContent = simpleName; 
         sel.appendChild(opt); 
     });
 }
@@ -475,7 +463,8 @@ let pendingTabId = null; let pendingAction = null; let isAdminUnlocked = false;
 
 function switchTab(targetTabId, saveToStorage = true) {
     AUDIO.play('click');
-    if ((targetTabId === 'admin' || targetTabId === 'history' || targetTabId === 'directory'|| targetTabId === 'scheduling') && !isAdminUnlocked) {
+    // MODIFIED: Added 'scheduling' to the restricted list
+    if ((targetTabId === 'admin' || targetTabId === 'history' || targetTabId === 'directory' || targetTabId === 'scheduling') && !isAdminUnlocked) {
         pendingTabId = targetTabId; 
         securityMessage.textContent = "This section requires High-Level Security Clearance."; 
         securityOverlay.style.display = 'flex'; 
@@ -497,6 +486,7 @@ function switchTab(targetTabId, saveToStorage = true) {
         if (targetTabId === 'history') renderHistory();
         else if (targetTabId === 'reports') { renderHistory().then(() => calculatePersonalReport()); }
         else if (targetTabId === 'projects') renderProjects();
+        // REMOVED CHAT LOGIC HERE
         else if (targetTabId === 'equipment') renderEquipmentLogs();
         else if (targetTabId === 'directory') renderMemberDirectory();
         else if (targetTabId === 'social') renderFeed();
@@ -998,23 +988,6 @@ document.getElementById("add-project-btn").addEventListener("click", async () =>
 });
 window.deleteProject = async (id) => { if(confirm("Delete?")) { await supabaseClient.from('projects').delete().eq('id', id); renderProjects(); }};
 
-
-// --- CHAT ---
-async function loadChat() {
-    const d = document.getElementById("chat-display");
-    const { data } = await supabaseClient.from('chat_messages').select('*').order('created_at', { ascending: true });
-    if(data) d.innerHTML = data.map(m => `<div class="chat-message ${m.sender==='ME'?'msg-self':'msg-other'}"><span class="msg-meta">${m.sender}</span>${m.message}</div>`).join("");
-}
-function scrollChat() { const d = document.getElementById("chat-display"); d.scrollTop = d.scrollHeight; }
-document.getElementById("chat-send-btn").addEventListener("click", async () => {
-    const txt = document.getElementById("chat-input").value;
-    const sender = document.getElementById("chat-sender-select").value;
-    if(txt) {
-        await supabaseClient.from('chat_messages').insert([{ sender, message: txt }]);
-        document.getElementById("chat-input").value = "";
-        loadChat(); setTimeout(scrollChat, 500);
-    }
-});
 
 // --- CLOCK & ADMIN PIN ---
 function updateClock() {
