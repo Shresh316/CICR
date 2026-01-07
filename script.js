@@ -112,7 +112,7 @@ async function addMember() {
     const name = document.getElementById("new-member-name").value.trim(); 
     const email = document.getElementById("new-member-email").value.trim(); 
     const phone = document.getElementById("new-member-phone").value.trim();
-    const dob = document.getElementById("new-member-dob").value; // Capture DOB
+    const dob = document.getElementById("new-member-dob").value; 
     const batch = document.getElementById("new-member-batch").value.trim();
     const enroll = document.getElementById("new-member-enrollment").value.trim();
     
@@ -131,7 +131,6 @@ async function addMember() {
         year = year.trim();
     }
 
-    // [FIX] Validates that DOB is present so notifications work
     if (!name || !email || !phone || !dob || !batch || !enroll || !domain || !year) return alert("All text fields (including DOB) are mandatory.");
     if (!validateEmail(email)) return alert("Invalid Email Address format.");
 
@@ -439,20 +438,15 @@ function runSystemChecks() {
     const todayMatch = `${mm}-${dd}`;
     const todayDateString = today.toDateString();
 
-    // 1. Optimization: Check LocalStorage first to avoid heavy loops every reload
     if(localStorage.getItem("last_birthday_check") === todayDateString) return;
 
-    // 2. Scan Members
     for (const [name, details] of Object.entries(memberDetails)) {
         if (details.dob) {
-            // details.dob format is YYYY-MM-DD
             const parts = details.dob.split("-");
             if (parts.length === 3) {
-                const dobMatch = `${parts[1]}-${parts[2]}`; // MM-DD
+                const dobMatch = `${parts[1]}-${parts[2]}`; 
                 
-                // 3. Match Today
                 if (dobMatch === todayMatch) {
-                    // 4. Duplicate Guard: Check if a notification for this user exists TODAY
                     const alreadyExists = notifications.some(n => 
                         n.type === 'birthday' && 
                         n.metadata?.name === name && 
@@ -467,7 +461,6 @@ function runSystemChecks() {
         }
     }
     
-    // Save check state
     localStorage.setItem("last_birthday_check", todayDateString);
 }
 
@@ -482,7 +475,7 @@ let pendingTabId = null; let pendingAction = null; let isAdminUnlocked = false;
 
 function switchTab(targetTabId, saveToStorage = true) {
     AUDIO.play('click');
-    if ((targetTabId === 'admin' || targetTabId === 'history' || targetTabId === 'directory') && !isAdminUnlocked) {
+    if ((targetTabId === 'admin' || targetTabId === 'history' || targetTabId === 'directory'|| targetTabId === 'scheduling') && !isAdminUnlocked) {
         pendingTabId = targetTabId; 
         securityMessage.textContent = "This section requires High-Level Security Clearance."; 
         securityOverlay.style.display = 'flex'; 
@@ -504,7 +497,6 @@ function switchTab(targetTabId, saveToStorage = true) {
         if (targetTabId === 'history') renderHistory();
         else if (targetTabId === 'reports') { renderHistory().then(() => calculatePersonalReport()); }
         else if (targetTabId === 'projects') renderProjects();
-        else if (targetTabId === 'chat') { loadChat(); scrollChat(); }
         else if (targetTabId === 'equipment') renderEquipmentLogs();
         else if (targetTabId === 'directory') renderMemberDirectory();
         else if (targetTabId === 'social') renderFeed();
@@ -666,13 +658,75 @@ async function renderHistory() {
     });
 }
 
-document.getElementById('clear-history-btn').addEventListener('click', async () => {
+// [FIX] INTEGRATED BUTTONS FOR DELETE AND EXPORT
+
+// 1. Export All Button (Standard)
+document.getElementById("export-excel-btn")?.addEventListener("click", () => {
+    downloadCSV(cachedAttendanceLogs);
+});
+
+// 2. Export Selected Button (New)
+document.getElementById("export-selected-btn")?.addEventListener("click", () => {
+    const selectedIds = Array.from(document.querySelectorAll('.history-checkbox:checked')).map(cb => cb.value);
+    if (selectedIds.length === 0) return alert("No logs selected.");
+
+    const selectedLogs = cachedAttendanceLogs.filter(log => selectedIds.includes(log.id));
+    downloadCSV(selectedLogs);
+});
+
+// 3. Clear All History Button (Standard)
+document.getElementById('clear-history-btn')?.addEventListener('click', async () => {
     if(!isAdminUnlocked) return alert("Security Restriction.");
-    if(confirm("DELETE ALL LOGS?")) {
+    if(confirm("DELETE ALL LOGS? This cannot be undone.")) {
         const { error } = await supabaseClient.from('attendance_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-        if(!error) renderHistory();
+        if (error) alert("Error: " + error.message);
+        else renderHistory();
     }
 });
+
+// 4. Delete Selected Logs Button (New)
+document.getElementById("remove-selected-btn")?.addEventListener("click", async () => {
+    if(!isAdminUnlocked) return alert("Security Restriction: Unlock Admin Mode first.");
+    
+    const selectedIds = Array.from(document.querySelectorAll('.history-checkbox:checked')).map(cb => cb.value);
+    if (selectedIds.length === 0) return alert("No logs selected.");
+
+    if(confirm(`Permanently delete ${selectedIds.length} selected log(s)?`)) {
+        const { error } = await supabaseClient.from('attendance_logs').delete().in('id', selectedIds);
+        if (error) alert("Error deleting: " + error.message);
+        else {
+            alert("Deleted successfully.");
+            renderHistory();
+        }
+    }
+});
+
+// Helper Function for CSV Download
+function downloadCSV(logs) {
+    if (!logs || logs.length === 0) { alert("No logs to export."); return; }
+
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Date,Topic,Name,Group,Status\n";
+
+    logs.forEach(log => {
+        const date = log.date || "";
+        const topic = (log.topic || "").replace(/,/g, " ");
+        const att = log.attendance_data || [];
+
+        att.forEach(student => {
+             const row = `${date},${topic},${student.name},${student.group || ''},${student.status}`;
+             csvContent += row + "\n";
+        });
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `CICR_Log_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
 
 function calculatePersonalReport() {
     const logs = cachedAttendanceLogs;
@@ -692,7 +746,6 @@ function calculatePersonalReport() {
         });
     }
     
-    // Render tables 1-4
     [1, 2, 3, 4].forEach(y => {
         const tbody = document.getElementById(`analytics-body-${y}`); 
         if (!tbody) return; 
@@ -726,8 +779,6 @@ async function publishPost() {
     const author = document.getElementById('social-author').value.trim();
     const text = document.getElementById('social-text').value.trim();
     const imgType = document.getElementById('social-img-type').value;
-    
-    // [FIX] Capture and sanitize the link so it opens correctly
     let rawLink = document.getElementById('social-link').value.trim();
     let link = "";
     if (rawLink) {
@@ -744,12 +795,10 @@ async function publishPost() {
 
         if (error) alert("Post failed: " + error.message);
         else {
-            // [FIX] Clear ALL fields after success
             document.getElementById('social-text').value = ""; 
             document.getElementById('social-link').value = ""; 
             document.getElementById('social-img-url').value = "";
             document.getElementById('social-img-file').value = "";
-            
             showSuccessAnimation(); 
             renderFeed();
         }
@@ -995,33 +1044,6 @@ function getMeetingTopic() {
 document.getElementById("create-gmeet-btn")?.addEventListener("click", () => {
     const topic = getMeetingTopic();
     window.open(`https://calendar.google.com/calendar/r/eventedit?text=${encodeURIComponent(topic)}`, '_blank');
-});
-
-// --- CSV EXPORT LOGIC ---
-document.getElementById("export-excel-btn")?.addEventListener("click", () => {
-    if (!cachedAttendanceLogs || cachedAttendanceLogs.length === 0) { alert("No logs to export."); return; }
-
-    let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Date,Topic,Name,Group,Status\n";
-
-    cachedAttendanceLogs.forEach(log => {
-        const date = log.date || "";
-        const topic = (log.topic || "").replace(/,/g, " ");
-        const att = log.attendance_data || [];
-
-        att.forEach(student => {
-             const row = `${date},${topic},${student.name},${student.group || ''},${student.status}`;
-             csvContent += row + "\n";
-        });
-    });
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `CICR_Log_${new Date().toISOString().slice(0,10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
 });
 
 // --- SCHEDULER LOGIC ---
