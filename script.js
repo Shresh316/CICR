@@ -21,14 +21,6 @@ let cachedAttendanceLogs = [];
 let GLOBAL_SECURITY_PIN = "1407"; 
 let notifications = []; 
 
-// Audio Engine
-const AUDIO = {
-    click: new Audio("https://www.soundjay.com/buttons/sounds/button-16.mp3"),
-    success: new Audio("https://www.soundjay.com/buttons/sounds/button-09.mp3"),
-    transition: new Audio("https://www.soundjay.com/misc/sounds/heartbeat-01a.mp3"),
-    play: function(key) { if(this[key]) { this[key].volume = 0.3; this[key].currentTime = 0; this[key].play().catch(()=>{}); } }
-};
-
 // --- DOM ELEMENTS ---
 const techGate = document.getElementById('tech-gate');
 const splashScreen = document.getElementById("splash-screen");
@@ -42,12 +34,22 @@ const unlockBtn = document.getElementById('unlock-btn');
 const securityCancel = document.getElementById('security-cancel');
 const securityMessage = document.getElementById('security-message');
 const allMembersDatalist = document.getElementById("all-members-datalist");
-const bgMusic = document.getElementById("bg-music");
-const musicToggle = document.getElementById("music-toggle");
 
 // --- UTILITY FUNCTIONS ---
-function operateGate(callback) { AUDIO.play('transition'); techGate.classList.add('active'); setTimeout(() => { if(callback) callback(); setTimeout(() => { techGate.classList.remove('active'); }, 1000); }, 1200); }
-function showSuccessAnimation() { AUDIO.play('success'); const overlay = document.getElementById('action-success-overlay'); overlay.style.display = 'flex'; setTimeout(() => { overlay.style.display = 'none'; }, 2000); }
+function operateGate(callback) { 
+    techGate.classList.add('active'); 
+    setTimeout(() => { 
+        if(callback) callback(); 
+        setTimeout(() => { techGate.classList.remove('active'); }, 1000); 
+    }, 1200); 
+}
+
+function showSuccessAnimation() { 
+    const overlay = document.getElementById('action-success-overlay'); 
+    overlay.style.display = 'flex'; 
+    setTimeout(() => { overlay.style.display = 'none'; }, 2000); 
+}
+
 function openDatePicker(id) { const el = document.getElementById(id); if(el) { try{ el.showPicker(); } catch(e){ el.focus(); el.click(); } } }
 function validateEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 function formatDateTime(isoString) { if(!isoString) return ''; return new Date(isoString).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
@@ -229,7 +231,6 @@ function refreshAllDropdowns() {
     populateSchedulingDropdowns(); 
     populateProjectMembersDropdown(); 
     populateGroupSelects(); 
-    // Chat dropdown populated removed
 }
 
 function populateGroupSelects() {
@@ -404,7 +405,6 @@ async function addNotification(text, type = "general", metadata = {}) {
 
     if (!error) {
         await fetchNotifications(); 
-        AUDIO.play('success');
     }
 }
 
@@ -462,8 +462,6 @@ window.sendBirthdayWish = (name, email) => {
 let pendingTabId = null; let pendingAction = null; let isAdminUnlocked = false;
 
 function switchTab(targetTabId, saveToStorage = true) {
-    AUDIO.play('click');
-    // MODIFIED: Added 'scheduling' to the restricted list
     if ((targetTabId === 'admin' || targetTabId === 'history' || targetTabId === 'directory' || targetTabId === 'scheduling') && !isAdminUnlocked) {
         pendingTabId = targetTabId; 
         securityMessage.textContent = "This section requires High-Level Security Clearance."; 
@@ -486,7 +484,6 @@ function switchTab(targetTabId, saveToStorage = true) {
         if (targetTabId === 'history') renderHistory();
         else if (targetTabId === 'reports') { renderHistory().then(() => calculatePersonalReport()); }
         else if (targetTabId === 'projects') renderProjects();
-        // REMOVED CHAT LOGIC HERE
         else if (targetTabId === 'equipment') renderEquipmentLogs();
         else if (targetTabId === 'directory') renderMemberDirectory();
         else if (targetTabId === 'social') renderFeed();
@@ -1051,7 +1048,6 @@ document.getElementById("schedule-meeting-btn")?.addEventListener("click", () =>
 
 // --- INITIALIZATION ---
 splashScreen.addEventListener('click', () => { 
-    AUDIO.play('click'); 
     splashScreen.style.opacity = '0'; 
     setTimeout(() => { 
         splashScreen.style.display = 'none'; 
@@ -1069,7 +1065,6 @@ splashScreen.addEventListener('click', () => {
             if(savedTab) switchTab(savedTab, false); else switchTab('attendance'); 
         }); 
     }, 500); 
-    bgMusic.volume = 0.5; bgMusic.play().catch(()=>{});
 });
 
 tabLinks.forEach(link => link.addEventListener('click', (e) => switchTab(e.target.getAttribute('data-tab'))));
@@ -1078,21 +1073,6 @@ document.getElementById("attendance-domain-filter").addEventListener("change", r
 document.getElementById("save-data-btn").addEventListener("click", saveData);
 document.getElementById("add-member-btn").addEventListener("click", addMember);
 document.getElementById("remove-member-btn").addEventListener("click", removeMember);
-
-// EVENT LISTENERS
-if(musicToggle) {
-    musicToggle.addEventListener('click', () => {
-        if(bgMusic.paused) {
-            bgMusic.play();
-            musicToggle.textContent = "🔊";
-            musicToggle.style.opacity = "1";
-        } else {
-            bgMusic.pause();
-            musicToggle.textContent = "🔇";
-            musicToggle.style.opacity = "0.5";
-        }
-    });
-}
 
 document.getElementById("open-calendar-btn")?.addEventListener("click", () => openDatePicker("attendance-date"));
 document.getElementById("open-calendar-start-btn")?.addEventListener("click", () => openDatePicker("project-start"));
